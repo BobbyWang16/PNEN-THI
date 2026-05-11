@@ -1,0 +1,6 @@
+# Ignore all directories (only commit root-level files)
+*/
+
+# Ignore Python cache
+__pycache__/
+*.pyc
