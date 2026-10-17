@@ -8,7 +8,17 @@ venv/
 Thumbs.db
 .pytest_cache/
 outputs/
-data/
+data/**
+!data/A/
+!data/V/
+!data/V2A/
+!data/ROI/
+!data/DOT/
+!data/README.md
+!data/README_zh.md
+!data/case_001.json
+!data/V/.gitkeep
+!data/DOT/.gitkeep
 archive/
 *.csv
 *.tsv
@@ -24,6 +34,6 @@ archive/
 *.npz
 # Only the curated real example and selected frozen estimator bundle belong here.
 !weights.joblib
-!examples/case_001/arterial.nii.gz
-!examples/case_001/venous.nii.gz
-!examples/case_001/tumor_roi.nii.gz
+!data/A/case_001.nii.gz
+!data/V2A/case_001.nii.gz
+!data/ROI/case_001.nii.gz

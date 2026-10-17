@@ -8,7 +8,7 @@ Expert-initialized habitats · Interpretable heterogeneity · Frozen inference
 
 [English](README.md) &nbsp; · &nbsp; [简体中文](README_zh.md)
 
-[Quick start](#quick-start) &nbsp; / &nbsp; [Core method](#core-method) &nbsp; / &nbsp; [Image scores](#image-scores) &nbsp; / &nbsp; [Grading](#grading) &nbsp; / &nbsp; [Training](#training)
+[Quick start](#quick-start) &nbsp; / &nbsp; [Input data](#input-data) &nbsp; / &nbsp; [Core method](#core-method) &nbsp; / &nbsp; [Image scores](#image-scores) &nbsp; / &nbsp; [Grading](#grading) &nbsp; / &nbsp; [Training](#training)
 
 </div>
 
@@ -47,18 +47,51 @@ python -m pip install -r requirements.txt
 
 The base workflow also supports Python 3.12. Run the following commands from the repository root.
 
+## Input data
+
+Organize volumes by phase and annotation, using the same deidentified filename for a case across folders:
+
+```text
+data/
+├── A/case_001.nii.gz       # arterial CT: the fixed 1-mm reference grid
+├── V/                     # original venous CT, before registration
+├── V2A/case_001.nii.gz     # venous CT registered and resampled to A
+├── ROI/case_001.nii.gz     # segmentation on A; tumor label = 2
+└── DOT/                   # sparse expert labels 1/2/3 on A, for prior learning
+```
+
+| Folder | Contents | Used by |
+| :--- | :--- | :--- |
+| `A` | Arterial-phase CT in source HU | Prior learning, clustering, heterogeneity, radiomics |
+| `V` | Original venous-phase CT | Upstream registration |
+| `V2A` | Venous-phase CT aligned to the arterial grid | Clustering, heterogeneity, radiomics |
+| `ROI` | Integer segmentation, 0 background and 2 tumor; optional non-target label 1 | Tumor selection |
+| `DOT` | Sparse expert-point labelmap: 0 unannotated and 1/2/3 expert classes | Learning a new aggregate prior |
+
+`V2A` means **V registered to A**. The released real case supplies `A`, `V2A`, and `ROI`; its original `V` and expert `DOT` are not included. New images placed in these folders remain ignored by Git by default.
+
+See the [data and preparation guide](data/README.md) for DICOM conversion, segmentation, registration, point annotation, prior generation, clustering, and feature calculation, with commands for each code stage.
+
 ## Quick start
+
+Validate the real example and organize it into the per-case input format:
+
+```bash
+python -m preprocessing.prepare --data-root data --case-id case_001 --output-dir outputs/cases/case_001
+```
+
+This copies `A → arterial.nii.gz`, `V2A → venous.nii.gz`, and `ROI → tumor_roi.nii.gz`, preserving voxel values and geometry. When a `DOT` file exists, it also copies it to `points.nii.gz`. It requires matching 1-mm grids and refuses existing target files.
 
 Compute habitats, all 18 core heterogeneity features, and THI for the real example:
 
 ```bash
-python predict.py --thi-only --case examples/case_001 --output-dir outputs/demo
+python predict.py --thi-only --case outputs/cases/case_001 --output-dir outputs/demo
 ```
 
 The output directory receives `habitats.nii.gz`, `heterogeneity_features.json`, and `result.json`. With the full radiomics environment, compute the 200 radiomics features and both scores:
 
 ```bash
-python predict.py --score-only --case examples/case_001 --output-dir outputs/demo_scores
+python predict.py --score-only --case outputs/cases/case_001 --output-dir outputs/demo_scores
 ```
 
 This also writes `radiomics_features.json`, including extraction settings and provenance. Inspect either grading specification with the same entry point:
@@ -84,7 +117,7 @@ your_training_case/
 └── points.nii.gz
 ```
 
-`points.nii.gz` contains sparse expert labels **1, 2, 3** on the same grid as the CT and ROI; 0 denotes unannotated voxels. Only points inside the selected tumor ROI contribute. Supply **training cases only**:
+`points.nii.gz` is the prepared copy of `data/DOT/<case_id>.nii.gz`. It contains sparse expert labels **1, 2, 3** on the same grid as the CT and ROI; 0 denotes unannotated voxels. Only points inside the selected tumor ROI contribute. Supply **training cases only**:
 
 ```bash
 python -m preprocessing.learn_prior --cases /path/to/training_case_001 /path/to/training_case_002 --output outputs/prior.json
@@ -99,13 +132,13 @@ The released 100-case aggregate prior is already embedded in `predict.PRIOR`. Re
 Use the embedded aggregate prior:
 
 ```bash
-python -m preprocessing.cluster --case examples/case_001 --output outputs/habitats.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --output outputs/habitats.nii.gz
 ```
 
 Or use a prior learned from your own training cases:
 
 ```bash
-python -m preprocessing.cluster --case examples/case_001 --prior outputs/prior.json --output outputs/habitats_custom_prior.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior outputs/prior.json --output outputs/habitats_custom_prior.nii.gz
 ```
 
 Each tumor voxel has the five-dimensional vector **[A, local SD(A), Sobel(A), V, V − A]**, where A and V use the fixed −160 to 240 HU window mapped to 0–1. Within each case, the arterial block (first three dimensions) and the venous/difference block (last two) are independently median/IQR scaled with `RobustScaler`. Constant columns are removed, and each block is divided by the square root of its retained dimension count.
@@ -115,7 +148,7 @@ The expert centroids initialize **only the three arterial dimensions**; other in
 ### 3 · Measure intratumoral heterogeneity
 
 ```bash
-python -m preprocessing.heterogeneity --case examples/case_001 --habitats outputs/habitats.nii.gz --output outputs/thi_features.json
+python -m preprocessing.heterogeneity --case outputs/cases/case_001 --habitats outputs/habitats.nii.gz --output outputs/thi_features.json
 ```
 
 The calculation returns **18 core features**:
@@ -133,7 +166,7 @@ Heterogeneity measurements use the **source HU images**. SHI uses physical coord
 **Dual-phase radiomics.** The released extractor produces **200 features: 14 shared shape + 93 arterial + 93 venous**. It uses PyRadiomics `Original` images, whole-image normalization scaled to **255**, bin width **25**, and **1 × 1 × 1 mm** resampling with B-spline image interpolation. Shape names begin with `original_shape_`; phase-specific names begin with `A_original_` or `V_original_`.
 
 ```bash
-python -m preprocessing.radiomics --case examples/case_001 --output outputs/radiomics_features.json
+python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs/radiomics_features.json
 ```
 
 Input field of view affects whole-image normalization; retain the intended source preprocessing.
@@ -215,6 +248,7 @@ PNEN-THI/
 ├── requirements.txt
 ├── preprocessing/
 │   ├── io.py                  # NIfTI geometry and source-HU handling
+│   ├── prepare.py             # validate A / V2A / ROI / optional DOT; organize a case
 │   ├── learn_prior.py         # step 1: aggregate expert-point centroids
 │   ├── cluster.py             # step 2: constrained three-habitat clustering
 │   ├── heterogeneity.py       # step 3: 18 DDI / SHI / DEHI features
@@ -222,12 +256,14 @@ PNEN-THI/
 │   └── requirements-radiomics.txt
 ├── assets/
 │   └── study_workflow.png
-└── examples/
-    └── case_001/
-        ├── arterial.nii.gz
-        ├── venous.nii.gz
-        ├── tumor_roi.nii.gz
-        └── case.json
+└── data/
+    ├── README.md / README_zh.md # preparation and complete workflow guides
+    ├── A/case_001.nii.gz
+    ├── V/
+    ├── V2A/case_001.nii.gz
+    ├── ROI/case_001.nii.gz
+    ├── DOT/
+    └── case_001.json
 ```
 
 The example preserves voxel values and spatial geometry with neutral filenames and cleaned NIfTI headers. **Tumor label is 2**; the ROI also contains non-target label 1. Inputs must share a **1-mm isotropic grid**, shape and affine, with anatomical alignment checked before inference. A matching grid alone does not establish registration.

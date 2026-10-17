@@ -8,7 +8,7 @@
 
 [English](README.md) &nbsp; · &nbsp; [简体中文](README_zh.md)
 
-[快速开始](#快速开始) &nbsp; / &nbsp; [核心方法](#核心方法) &nbsp; / &nbsp; [影像评分](#影像评分) &nbsp; / &nbsp; [分级推理](#分级推理) &nbsp; / &nbsp; [训练](#训练)
+[快速开始](#快速开始) &nbsp; / &nbsp; [输入数据](#输入数据) &nbsp; / &nbsp; [核心方法](#核心方法) &nbsp; / &nbsp; [影像评分](#影像评分) &nbsp; / &nbsp; [分级推理](#分级推理) &nbsp; / &nbsp; [训练](#训练)
 
 </div>
 
@@ -47,18 +47,51 @@ python -m pip install -r requirements.txt
 
 基础流程也支持 Python 3.12。以下命令均从仓库根目录运行。
 
+## 输入数据
+
+按期相和标注类型保存影像，同一病例在不同目录使用相同的去标识文件名：
+
+```text
+data/
+├── A/case_001.nii.gz       # 动脉期 CT，作为固定的 1-mm 参考网格
+├── V/                     # 配准前的原始静脉期 CT
+├── V2A/case_001.nii.gz     # 已配准并重采样到 A 的静脉期 CT
+├── ROI/case_001.nii.gz     # A 网格上的分割，肿瘤标签为 2
+└── DOT/                   # A 网格上的稀疏专家点标签 1/2/3，用于先验学习
+```
+
+| 目录 | 存放内容 | 用于 |
+| :--- | :--- | :--- |
+| `A` | 保留原始 HU 的动脉期 CT | 先验学习、聚类、异质性及组学计算 |
+| `V` | 原始静脉期 CT | 上游配准 |
+| `V2A` | 已对齐动脉期网格的静脉期 CT | 聚类、异质性及组学计算 |
+| `ROI` | 整数分割标签，0 为背景、2 为肿瘤；可保留非目标标签 1 | 肿瘤区域选择 |
+| `DOT` | 稀疏专家点图：0 未标注，1/2/3 为专家类别 | 学习新的汇总先验 |
+
+`V2A` 表示 **V 配准到 A**。发布的真实病例提供 `A、V2A、ROI`，不附原始 `V` 或专家 `DOT`。放入这些目录的其他病例默认不会被 Git 收录。
+
+完整的 DICOM 转换、分割、配准、点标注、先验生成、聚类及特征计算步骤与命令见[数据准备与完整流程指南](data/README_zh.md)。
+
 ## 快速开始
+
+校验真实示例，并整理为逐例输入格式：
+
+```bash
+python -m preprocessing.prepare --data-root data --case-id case_001 --output-dir outputs/cases/case_001
+```
+
+脚本按 `A → arterial.nii.gz`、`V2A → venous.nii.gz`、`ROI → tumor_roi.nii.gz` 复制，保留体素值与几何信息；存在 `DOT` 时还会复制为 `points.nii.gz`。输入须为匹配的 1-mm 网格，脚本拒绝覆盖已有目标文件。
 
 从真实示例计算生境、全部 18 项核心异质性特征和 THI：
 
 ```bash
-python predict.py --thi-only --case examples/case_001 --output-dir outputs/demo
+python predict.py --thi-only --case outputs/cases/case_001 --output-dir outputs/demo
 ```
 
 输出目录包含 `habitats.nii.gz`、`heterogeneity_features.json` 和 `result.json`。安装完整影像组学环境后，可提取 200 项影像组学特征并计算两个评分：
 
 ```bash
-python predict.py --score-only --case examples/case_001 --output-dir outputs/demo_scores
+python predict.py --score-only --case outputs/cases/case_001 --output-dir outputs/demo_scores
 ```
 
 此命令还输出 `radiomics_features.json`，记录提取设置与来源说明。同一入口可查看两个分级模型的规格：
@@ -84,7 +117,7 @@ your_training_case/
 └── points.nii.gz
 ```
 
-`points.nii.gz` 与 CT、ROI 使用相同网格，保存稀疏专家标签 **1、2、3**；0 表示未标注体素。仅统计所选肿瘤 ROI 内的点。输入须为**训练病例**：
+`points.nii.gz` 是 `data/DOT/<case_id>.nii.gz` 整理后的副本，与 CT、ROI 使用相同网格，保存稀疏专家标签 **1、2、3**；0 表示未标注体素。仅统计所选肿瘤 ROI 内的点。输入须为**训练病例**：
 
 ```bash
 python -m preprocessing.learn_prior --cases /path/to/training_case_001 /path/to/training_case_002 --output outputs/prior.json
@@ -99,13 +132,13 @@ python -m preprocessing.learn_prior --cases /path/to/training_case_001 /path/to/
 使用内置汇总先验：
 
 ```bash
-python -m preprocessing.cluster --case examples/case_001 --output outputs/habitats.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --output outputs/habitats.nii.gz
 ```
 
 或使用自己的训练病例学习所得先验：
 
 ```bash
-python -m preprocessing.cluster --case examples/case_001 --prior outputs/prior.json --output outputs/habitats_custom_prior.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior outputs/prior.json --output outputs/habitats_custom_prior.nii.gz
 ```
 
 每个肿瘤体素的五维向量为 **[A、局部 SD(A)、Sobel(A)、V、V − A]**，其中 A、V 均采用固定 −160 至 240 HU 窗并映射至 0–1。对每例肿瘤，动脉特征块（前三维）与静脉／差值特征块（后两维）分别通过 `RobustScaler` 进行中位数／IQR 缩放，移除常量列，再将每块除以其保留维数的平方根。
@@ -115,7 +148,7 @@ python -m preprocessing.cluster --case examples/case_001 --prior outputs/prior.j
 ### 3 · 测量肿瘤内异质性
 
 ```bash
-python -m preprocessing.heterogeneity --case examples/case_001 --habitats outputs/habitats.nii.gz --output outputs/thi_features.json
+python -m preprocessing.heterogeneity --case outputs/cases/case_001 --habitats outputs/habitats.nii.gz --output outputs/thi_features.json
 ```
 
 输出包含 **18 项核心特征**：
@@ -133,7 +166,7 @@ python -m preprocessing.heterogeneity --case examples/case_001 --habitats output
 **双期影像组学。** 提取器输出 **200 项特征：14 项共享形状 + 93 项动脉期 + 93 项静脉期**。采用 PyRadiomics `Original` 影像、整幅影像归一化并缩放至 **255**、灰度箱宽 **25**，以及 **1 × 1 × 1 mm** 重采样和 B-spline 影像插值。形状特征以 `original_shape_` 开头，双期特征分别以 `A_original_`、`V_original_` 开头。
 
 ```bash
-python -m preprocessing.radiomics --case examples/case_001 --output outputs/radiomics_features.json
+python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs/radiomics_features.json
 ```
 
 整幅影像归一化受输入视野影响，使用时应保持预定的源预处理方式。
@@ -215,6 +248,7 @@ PNEN-THI/
 ├── requirements.txt
 ├── preprocessing/
 │   ├── io.py                  # NIfTI 几何与原始 HU 读写
+│   ├── prepare.py             # 校验 A / V2A / ROI / 可选 DOT，整理逐例输入
 │   ├── learn_prior.py         # 步骤 1：汇总专家点中心
 │   ├── cluster.py             # 步骤 2：三类受约束生境聚类
 │   ├── heterogeneity.py       # 步骤 3：18 项 DDI / SHI / DEHI 特征
@@ -222,12 +256,14 @@ PNEN-THI/
 │   └── requirements-radiomics.txt
 ├── assets/
 │   └── study_workflow.png
-└── examples/
-    └── case_001/
-        ├── arterial.nii.gz
-        ├── venous.nii.gz
-        ├── tumor_roi.nii.gz
-        └── case.json
+└── data/
+    ├── README.md / README_zh.md # 数据准备及完整流程指南
+    ├── A/case_001.nii.gz
+    ├── V/
+    ├── V2A/case_001.nii.gz
+    ├── ROI/case_001.nii.gz
+    ├── DOT/
+    └── case_001.json
 ```
 
 示例使用中性文件名及清理后的 NIfTI 头，保留体素值与空间几何信息。**肿瘤标签为 2**，ROI 还包含非目标标签 1。输入应处于相同的 **1-mm 各向同性网格**，具有相同尺寸与 affine，并在推理前核对解剖配准；网格一致本身不代表配准完成。

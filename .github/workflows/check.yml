@@ -15,9 +15,12 @@ jobs:
           python -m compileall -q predict.py train.py preprocessing
           python predict.py --list-models
           python train.py --help
+          python -m preprocessing.prepare --help
           python -m preprocessing.learn_prior --help
           python -m preprocessing.cluster --help
           python -m preprocessing.heterogeneity --help
           python -m preprocessing.radiomics --help
       - name: Run the real CT example
-        run: python predict.py --thi-only --case examples/case_001 --output-dir outputs/demo
+        run: |
+          python -m preprocessing.prepare --data-root data --case-id case_001 --output-dir outputs/cases/case_001
+          python predict.py --thi-only --case outputs/cases/case_001 --output-dir outputs/demo
