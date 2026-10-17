@@ -1,6 +1,29 @@
-# Ignore all directories (only commit root-level files)
-*/
-
-# Ignore Python cache
 __pycache__/
-*.pyc
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.pytest_cache/
+outputs/
+data/
+archive/
+*.csv
+*.tsv
+*.xls*
+*.doc*
+*.ipynb
+*.dcm
+*.nii*
+*.pkl
+*.pickle
+*.joblib
+*.npy
+*.npz
+# Only the curated real example and selected frozen estimator bundle belong here.
+!weights.joblib
+!examples/case_001/arterial.nii.gz
+!examples/case_001/venous.nii.gz
+!examples/case_001/tumor_roi.nii.gz

@@ -1,0 +1,8 @@
+# Python 3.9 is the verified complete imaging environment.
+# The core methods and frozen estimators also run on Python 3.12.
+numpy==1.26.4
+scipy==1.13.1
+pandas==2.3.3
+scikit-learn==1.6.1
+joblib==1.5.3
+nibabel==5.3.3

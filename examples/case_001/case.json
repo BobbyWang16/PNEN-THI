@@ -1,0 +1,14 @@
+{
+  "case_id": "case_001",
+  "data_origin": "real_deidentified_registered_CT_crop",
+  "arterial": "arterial.nii.gz",
+  "venous": "venous.nii.gz",
+  "tumor_roi": "tumor_roi.nii.gz",
+  "tumor_label": 2,
+  "ignore_other_roi_labels": true,
+  "spacing_mm": [1.0, 1.0, 1.0],
+  "shape": [141, 104, 107],
+  "clinical_inputs_included": false,
+  "outcomes_included": false,
+  "use": "Image processing demonstration; clinical grading also requires separately supplied measured clinical inputs."
+}

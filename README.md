@@ -1,433 +1,243 @@
 <div align="center">
 
-# 🔬 PNET-ITH
+# PNEN-THI
 
-### Pancreatic Neuroendocrine Tumor — Intra-tumoral Heterogeneity Analysis & Ordinal Grading
+**Dual-phase CT habitats for preoperative three-tier grading**
 
-<p>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-≥3.9-blue.svg" alt="Python"></a>
-  <a href="https://scikit-learn.org/"><img src="https://img.shields.io/badge/scikit--learn-≥1.0-orange.svg" alt="scikit-learn"></a>
-  <a href="https://pyradiomics.readthedocs.io/"><img src="https://img.shields.io/badge/PyRadiomics-≥3.0-red.svg" alt="PyRadiomics"></a>
-  <img src="https://img.shields.io/badge/patients-546-blueviolet.svg" alt="Cohort">
-  <img src="https://img.shields.io/badge/centers-5-yellow.svg" alt="Centers">
-  <img src="https://img.shields.io/badge/license-Academic-green.svg" alt="License">
-</p>
+Expert-initialized habitats · Interpretable heterogeneity · Frozen inference
 
-<p><b>A multi-center, multi-modal radiomics framework that integrates dual-phase CT intra-tumoral heterogeneity (ITH) analysis with ordinal machine-learning classifiers to non-invasively predict the WHO grade (G1 / G2 / G3) of Pancreatic Neuroendocrine Tumors (P-NEN).</b></p>
+[English](README.md) &nbsp; · &nbsp; [简体中文](README_zh.md)
 
-<p>
-  <a href="#-highlights">Highlights</a> ·
-  <a href="#-pipeline-overview">Pipeline</a> ·
-  <a href="#-quick-start">Quick Start</a> ·
-  <a href="#-stage-a--tumor-heterogeneity-clustering">Algorithm</a> ·
-  <a href="#-citation">Citation</a> ·
-  <a href="说明文档.md">📖 中文文档</a>
-</p>
+[Quick start](#quick-start) &nbsp; / &nbsp; [Core method](#core-method) &nbsp; / &nbsp; [Image scores](#image-scores) &nbsp; / &nbsp; [Grading](#grading) &nbsp; / &nbsp; [Training](#training)
 
 </div>
 
----
+<a href="assets/study_workflow.png"><img src="assets/study_workflow.png" alt="Study workflow: dual-phase CT, expert-initialized tumor habitats, heterogeneity and radiomics scores, and three-tier grading of pancreatic neuroendocrine neoplasms" width="100%"></a>
 
-## 📑 Table of Contents
+**Study workflow.** The PNET-ITH method connects arterial- and venous-phase CT, three tumor habitats, heterogeneity descriptors, and grading models for pancreatic neuroendocrine neoplasms. This repository provides the core numerical method, selected frozen estimators, and one real deidentified image case.
 
-- [✨ Highlights](#-highlights)
-- [📐 Pipeline Overview](#-pipeline-overview)
-- [📊 Dataset](#-dataset)
-- [🗂️ Repository Layout](#️-repository-layout)
-- [🔬 Stage A — Tumor Heterogeneity Clustering](#-stage-a--tumor-heterogeneity-clustering)
-- [📈 Stage B — Heterogeneity Feature Engineering](#-stage-b--heterogeneity-feature-engineering)
-- [🎯 Stage C — Ordinal Grade Prediction](#-stage-c--ordinal-grade-prediction)
-- [🔍 Stage D — Interpretation & Sub-analyses](#-stage-d--interpretation--sub-analyses)
-- [🚀 Quick Start](#-quick-start)
-- [✅ Quality Guarantees](#-quality-guarantees)
-- [💡 Key Design Choices](#-key-design-choices)
-- [🔁 Reproducibility](#-reproducibility)
-- [📚 Documentation Map](#-documentation-map)
-- [📖 Citation](#-citation)
-- [📝 License](#-license)
+## Overview
 
----
+PNEN-THI packages the PNET-ITH implementation around two entry points: **`predict.py` for inference** and **`train.py` for refitting the fixed specification**. Image handling, expert-prior learning, habitat clustering, and feature extraction live together in `preprocessing/`.
 
-## ✨ Highlights
+| Stage | Input | Output |
+| :--- | :--- | :--- |
+| Expert prior | Training CT, tumor ROI, sparse expert points | Three aggregate arterial-feature centroids |
+| Habitats | Registered dual-phase CT, ROI, aggregate prior | Three ordered intratumoral habitats |
+| Image scores | Habitat heterogeneity and dual-phase radiomics | THI and RAD, each on a fixed 0–1 scale |
+| Grading | Image scores and complete clinical inputs | G1 / G2 / G3/NEC probabilities, risk, and grade |
 
-- 🧠 **Prior-guided ConstrainedKMeans** — Learns radiologist-annotation priors and enforces hard cluster-size constraints (≥ 5%) to overcome empty/tiny-cluster failure modes of vanilla GMM/KMeans on small lesions.
-- 🔒 **Three guaranteed invariants** — Every patient ends up with **exactly 3 HU-ordered, biologically interpretable sub-regions** (Necrosis → Stroma → Hyper-vascular).
-- 📊 **Three complementary heterogeneity indices** — DDI (distribution) + DEHI (dynamic enhancement) + SHI (spatial) = **120-D THI** feature block.
-- 🎯 **Ordinal-aware classification** — 6 models × 7 feature combinations × 3 selectors, scored with **Quadratic Weighted Kappa** that matches the clinical cost of mis-grading.
-- 🏥 **Multi-center validation** — 546 patients across 5 centers (TJ / ZS / HN / XY / SX), with inter-/intra-observer ICC reproducibility study.
+The supplied case demonstrates the imaging branch. It contains no clinical measurements, outcome, or expert-point annotations. No generated patient inputs or experiment suite is included.
 
----
+## Setup
 
-## 📐 Pipeline Overview
+Use **Python 3.9** for the full imaging workflow:
 
-```text
-  ┌──────────────┐    ┌────────────────┐    ┌─────────────────┐    ┌────────────────┐
-  │ Dual-phase CT│───►│   Stage A      │───►│   Stage B       │───►│   Stage C      │
-  │  + Tumor ROI │    │ ITH Clustering │    │ Heterogeneity   │    │ Ordinal Grading│
-  │  + DOT (opt) │    │  (3 sub-regs)  │    │ Feature Engin.  │    │  G1 < G2 < G3  │
-  └──────────────┘    └────────────────┘    └─────────────────┘    └────────────────┘
-                             │                      │                      │
-                             ▼                      ▼                      ▼
-                      *_clusters.nii.gz      feature_thi.xlsx        results/best/
-                                             feature_rad.xlsx             + SHAP
-                                                                          + ICC
-                                                                          + survival
+```bash
+python -m pip install -r preprocessing/requirements-radiomics.txt
 ```
 
----
+This includes the base dependencies and the source radiomics environment. Full extraction was verified with Python **3.9.25**, PyRadiomics **3.1.0**, NumPy **1.26.4**, SciPy **1.13.1**, and SimpleITK **2.5.5**. Source estimator loading and training use scikit-learn **1.6.1**.
 
-## 📊 Dataset
+For THI, model inference from existing features, and fixed-specification training without radiomics extraction:
 
-| Item | Value |
-|---|---|
-| **Total patients** | **546** |
-| **Modalities** | Arterial-phase CT · Venous-phase CT · Tumor ROI mask (NIfTI) |
-| **Outcome** | WHO Grade ∈ {G1, G2, G3} (ordinal; *Cancer treated as G3 by treatment equivalence*) + (time, event) |
-| **Cohort split** | TJ = **425** (train = 297 / inter-test = 128) — primary site<br>External = **121** (ZS = 56, HN = 29, XY = 26, SX = 10) |
-| **Grade distribution** | G1 = 226, G2 = 228, G3 = 92 — encoded 0 / 1 / 2 |
-| **Feature blocks** | Clinical (24) · Radiomics (200) · Heterogeneity / THI (120) |
+```bash
+python -m pip install -r requirements.txt
+```
 
-> Stratified by the **(Grade × Event)** joint label so that grade imbalance and survival imbalance are jointly preserved across folds. See [group.py](group.py).
+The base workflow also supports Python 3.12. Run the following commands from the repository root.
 
----
+## Quick start
 
-## 🗂️ Repository Layout
+Compute habitats, all 18 core heterogeneity features, and THI for the real example:
+
+```bash
+python predict.py --thi-only --case examples/case_001 --output-dir outputs/demo
+```
+
+The output directory receives `habitats.nii.gz`, `heterogeneity_features.json`, and `result.json`. With the full radiomics environment, compute the 200 radiomics features and both scores:
+
+```bash
+python predict.py --score-only --case examples/case_001 --output-dir outputs/demo_scores
+```
+
+This also writes `radiomics_features.json`, including extraction settings and provenance. Inspect either grading specification with the same entry point:
+
+```bash
+python predict.py --list-models
+python predict.py --describe model8
+python predict.py --describe model9
+```
+
+## Core method
+
+The three steps below expose the complete habitat-to-heterogeneity calculation. Existing registered CT and ROI inputs bypass upstream segmentation and registration. The repository does not include an automatic segmentation model or registration weights.
+
+### 1 · Learn an aggregate expert prior
+
+For a new training dataset, prepare each annotated case as:
+
+```text
+your_training_case/
+├── arterial.nii.gz
+├── tumor_roi.nii.gz
+└── points.nii.gz
+```
+
+`points.nii.gz` contains sparse expert labels **1, 2, 3** on the same grid as the CT and ROI; 0 denotes unannotated voxels. Only points inside the selected tumor ROI contribute. Supply **training cases only**:
+
+```bash
+python -m preprocessing.learn_prior --cases /path/to/training_case_001 /path/to/training_case_002 --output outputs/prior.json
+```
+
+Arterial HU values are transformed as `clip((HU + 160) / 400, 0, 1)`. At each valid point, the method measures **arterial intensity**, **local standard deviation in a 3 × 3 × 3 neighborhood**, and **3D Sobel gradient magnitude**. Points are pooled across training cases; the coordinatewise median for each expert label defines a centroid. The three centroids are ordered by arterial intensity. The output contains aggregate centroids and annotation counts.
+
+The released 100-case aggregate prior is already embedded in `predict.PRIOR`. Relearning is optional. The supplied demonstration case has no point map and is not an input to prior learning.
+
+### 2 · Construct three constrained habitats
+
+Use the embedded aggregate prior:
+
+```bash
+python -m preprocessing.cluster --case examples/case_001 --output outputs/habitats.nii.gz
+```
+
+Or use a prior learned from your own training cases:
+
+```bash
+python -m preprocessing.cluster --case examples/case_001 --prior outputs/prior.json --output outputs/habitats_custom_prior.nii.gz
+```
+
+Each tumor voxel has the five-dimensional vector **[A, local SD(A), Sobel(A), V, V − A]**, where A and V use the fixed −160 to 240 HU window mapped to 0–1. Within each case, the arterial block (first three dimensions) and the venous/difference block (last two) are independently median/IQR scaled with `RobustScaler`. Constant columns are removed, and each block is divided by the square root of its retained dimension count.
+
+The expert centroids initialize **only the three arterial dimensions**; other initial coordinates are zero in the scaled space. Constrained K-means uses **K = 3**, a minimum habitat size of **ceil(5% of tumor voxels)**, seed **42**, at most **100** iterations, and relative convergence tolerance **1e−4**. Final labels **1 → 3** follow increasing mean arterial intensity; background is 0.
+
+### 3 · Measure intratumoral heterogeneity
+
+```bash
+python -m preprocessing.heterogeneity --case examples/case_001 --habitats outputs/habitats.nii.gz --output outputs/thi_features.json
+```
+
+The calculation returns **18 core features**:
+
+| Family | Count | Measurements |
+| :--- | ---: | :--- |
+| Distributional heterogeneity, DDI | 9 | Between/within log ratio, centroid separation, Jensen–Shannon divergence, and dispersion diversity for each phase; habitat-balance entropy |
+| Spatial heterogeneity, SHI | 4 | Centroid spread, radial Wasserstein distance, interface fraction, and disconnected fraction |
+| Dynamic-enhancement heterogeneity, DEHI | 5 | Enhancement-mean spread, Jensen–Shannon divergence, dispersion diversity, phase-correlation diversity, and washout-fraction diversity |
+
+Heterogeneity measurements use the **source HU images**. SHI uses physical coordinates from the NIfTI affine, including voxel volume and equivalent tumor radius. The normalized images used for clustering are not substituted for source HU. `dehi_global_mean` is available with `--include-reference`; it is a reference measurement outside the 18-feature set.
+
+## Image scores
+
+**Dual-phase radiomics.** The released extractor produces **200 features: 14 shared shape + 93 arterial + 93 venous**. It uses PyRadiomics `Original` images, whole-image normalization scaled to **255**, bin width **25**, and **1 × 1 × 1 mm** resampling with B-spline image interpolation. Shape names begin with `original_shape_`; phase-specific names begin with `A_original_` or `V_original_`.
+
+```bash
+python -m preprocessing.radiomics --case examples/case_001 --output outputs/radiomics_features.json
+```
+
+Input field of view affects whole-image normalization; retain the intended source preprocessing. Nine historical `SurfaceVolumeRatio` entries differ between the assembled 200-feature table and its source tables. Fresh extraction therefore carries provenance and **does not claim exact recreation of historical RAD values**.
+
+**Locked formulas.** Historical development reduced **18 THI candidates to 7 active features** with ElasticNet (`alpha=0.3`, `l1_ratio=0.2`) and **200 radiomics candidates to 16 active features** (`alpha=0.1`, `l1_ratio=0.5`). The inference coefficients, feature statistics, and scaling constants are held in `predict.SCORES`.
+
+Each raw score is evaluated from its fixed linear formula. It is then transformed as `clip((raw − training_P1) / (training_P99 − training_P1), 0, 1)`. The training P1/P99 values come from the locked-feature, five-fold out-of-fold score construction; future cases use the all-training inference formula with these fixed constants.
+
+<sub>Figure note: the original study graphic retains schematic quantile/min–max labels. The numerical inference contract is the fixed training P1/P99 transformation specified in `SCORES`.</sub>
+
+## Grading
+
+Both models use **one `predict.py` and one `weights.joblib`**. `MODELS` specifies the components, weights, input order, hyperparameters, and grade rules; `CLINICAL` holds the fixed clinical transformations. Use measured features or previously normalized scores and actual clinical measurements:
+
+```bash
+python predict.py --model model8 --input /path/to/measured_features_or_scores.json --clinical /path/to/clinical.json --weights weights.joblib
+python predict.py --model model9 --input /path/to/measured_features_or_scores.json --clinical /path/to/clinical.json --weights weights.joblib
+```
+
+The input JSON contains either a `features` object mapping exact feature names to measurements, or a `scores` object containing `THI` and `RAD` on the clipped 0–1 scale. The clinical JSON maps clinical names to their raw observed values. The same matched values may instead be supplied in the input JSON's `clinical` object.
+
+| Model | Structure | Complete clinical inputs | Decision |
+| :--- | :--- | :--- | :--- |
+| Model 8 | RBF-SVC / MLP / polynomial SVM, weights 0.4 / 0.2 / 0.4 | LDH, AST, SFI | Largest averaged class probability |
+| Model 9 · exploratory | Two cumulative binary ensembles for ≥G2 and G3/NEC | LDH, AST, SFI, RIF%, size | Fixed thresholds on `p(G2) + 2p(G3/NEC)` |
+
+Model 9 repairs crossed cumulative probabilities by averaging them before constructing the three class probabilities. Its lower and upper risk thresholds are **0.6772685594841208** and **0.9673987735976841**; equality selects the higher category.
+
+SFI is a volume/height³ index (cm³/m³); `RIF% = 100 × IFI / TFI`, and size is in mm. Use clinical measurements on the original study scale. The required variables undergo their specified `log1p` and training mean/SD transformation. Historical fitted MICE objects are unavailable, so the release requires **complete clinical inputs**. The example case supplies no clinical values for grading.
+
+Model 8 was selected using the internal tuning cohort. Model 9 also used external performance constraints during selection and remains **exploratory**. These selection roles are retained in the released specifications.
+
+## Training
+
+Refit the fixed selected specification on your own feature/clinical table:
+
+```bash
+python train.py --input /path/to/training_features.csv --fit-scores --output new_weights.joblib
+```
+
+The default fits Model 8. To additionally refit the exploratory Model 9:
+
+```bash
+python train.py --input /path/to/training_features.csv --fit-scores --models model8 model9 --output new_weights.joblib
+```
+
+| CSV columns | Requirement |
+| :--- | :--- |
+| `Cohort` | Only rows equal to `training` contribute to fitting |
+| `Grade_ordinal` | 0 = G1, 1 = G2, 2 = G3/NEC |
+| `LDH`, `AST`, `SFI` | Complete raw clinical measurements |
+| `RIF%`, `size` | Additionally required for Model 9 |
+| Seven THI and sixteen RAD features | Exact raw feature names listed in `SCORES[name]['terms']` |
+
+Five-fold stratification requires at least **five training cases per grade**. Missing entries within observed feature columns use training-fold medians; entirely unobserved or constant features are discarded. Clinical measurements must be complete. Cohort and grade column names and the training label can be changed with the documented CLI options in `python train.py --help`.
+
+**Score fitting.** The script refits the locked 7/16-feature sets with five-fold `StratifiedKFold` (`shuffle=True`, seed **20260720**). Each fold learns median imputation, variance filtering, population-SD standardization, and ElasticNet using its training partition only. Score orientation follows training Spearman correlation to ordered grade; centering/scaling is learned in the same partition. Training OOF scores define P1/P99. A final formula is fitted on all training rows for future cases.
+
+**Grading fitting.** Clinical means/SDs are learned from the supplied training rows, while transformation choices, model components, hyperparameters, weights, and decision thresholds remain fixed. The new bundle stores its clinical transforms and score formulas, which `predict.py` uses in place of the historical dictionary values. The output is marked **`locked_spec_refit_not_historical_frozen`**: a new fit of locked active sets differs from the historical all-candidate development fit. The script performs no model search, threshold retuning, or performance experiments.
+
+Without `--fit-scores`, supply `THI`/`RAD` (or `THI_score_01`/`RAD_score_01`) plus `THI_score_source`/`RAD_score_source`. Accepted provenance labels are `out_of_fold`, `nested_oof`, or the original `training_locked_7_feature_5fold_OOF_refit` / `training_locked_16_feature_5fold_OOF_refit`. That path assumes the supplied scores match the published inference formulas and scaling; use `--fit-scores` to keep new-dataset formulas and scores together.
+
+The public training entry refits the selected specifications. Historical clinical screening and posterior MICE imputation are not recreated. The fixed selected features and shared OOF scaling do not provide a nested feature-selection evaluation or a new performance claim.
 
 <details>
-<summary><b>Click to expand full tree</b></summary>
+<summary><b>Historical model-development procedure</b></summary>
 
-```text
-PNET-ITH/
-├── data/                                  # Raw and processed inputs
-│   ├── crop_A/   crop_V/   crop_ROI/      # NIfTI (mask voxel = 2 = tumor)
-│   ├── crop_DOT/                          # Expert point annotations (optional)
-│   ├── modeling_data.xlsx                 # name, hospital, grade, event, time
-│   └── inter.csv / exter.csv              # Train / inter-test / external splits
-│
-├── clinical/                              # Univariate + multivariate clinical analysis
-├── cluster/
-│   ├── origin/                            # Legacy GMM / KMeans baseline (no prior)
-│   ├── without_point/                     # ConstrainedKMeans without prior (ablation)
-│   ├── with_point/                        # Prior-guided ConstrainedKMeans  ★ main
-│   └── point_prior_knowledge.pkl
-├── ICC/                                   # Inter- / intra-observer reproducibility
-├── rad/                                   # PyRadiomics tables + analysis notebooks
-├── score/                                 # Heterogeneity feature tables (modeling inputs)
-│   ├── feature_thi.xlsx   (546 × 120)
-│   ├── feature_rad.xlsx   (546 × 200)
-│   ├── feature_ddi.xlsx   (546 × 68)
-│   ├── feature_dehi.xlsx  (546 × 30)
-│   └── feature_shi.xlsx   (546 × 10)
-├── results/                               # Final figures, SHAP, subgroup, survival
-│
-├── ───── Core scripts ─────
-├── point_cluster.py        # ★ Prior-guided ConstrainedKMeans (main pipeline)
-├── nonpoint_cluster.py     #   No-prior ablation (same path minus prior init)
-├── ith_analysis.py         #   Legacy GMM/KMeans + necrosis spatial prior
-├── DDI.py / DEHI.py / SHI.py   # Three heterogeneity indices
-├── cal_rad_feature.py      # PyRadiomics feature extraction
-├── group.py                # Stratified train / inter-test / external split
-├── hyper_tune.py           # 7 × 3 × 6 GridSearchCV hyper-parameter search
-│
-├── ───── Modeling notebooks ─────
-├── classifier.ipynb        # ★ Final ordinal classifier (6 models × 7 combos)
-├── clinical.ipynb          # Clinical statistics
-├── icc.ipynb               # ICC study
-├── figure.ipynb            # Publication-grade figures
-│
-└── README.md / 说明文档.md / ith_analysis.md
-```
+Clinical screening used the training cohort: exclude variables with at least 25% missingness, log1p-transform skewed nonnegative variables, screen univariable proportional-odds likelihood-ratio tests at BH-FDR q&lt;0.10, and prune redundancy at |Spearman rho|≥0.85. Five training-fitted Bayesian-Ridge chained-equation imputations with posterior sampling were averaged, preserving observed values; validation outcomes were excluded. The saved imputation estimators are unavailable, which is why the public entry requires complete clinical inputs. Score regularization was compared within training cross-validation. Nonlinear families, feature subsets, hyperparameters and ensemble weights for Model 8 were selected using internal tuning; Model 9 additionally used external performance constraints. The released `train.py` refits the resulting locked specifications, rather than rerunning those selection searches.
 
 </details>
 
----
-
-## 🔬 Stage A — Tumor Heterogeneity Clustering
-
-Three biologically interpretable sub-regions per tumor:
-
-<div align="center">
-
-| Label | Region | HU |
-|:-:|:-:|:-:|
-| **1** | Necrosis / low-activity | 🟦 lowest  |
-| **2** | Stroma / mid-activity   | 🟩 middle  |
-| **3** | Hyper-vascular / rich   | 🟥 highest |
-
-</div>
-
-### Per-voxel 9-D feature
-
-```python
-[ weighted_a_hu,    # 0  HU × arterial_weight (2.0)
-  a_texture,        # 1  3×3 std filter
-  a_gradient,       # 2  3-axis Sobel magnitude
-  V − A,            # 3  ★ core enhancement difference
-  V / A,            # 4  enhancement ratio
-  |V − A|,          # 5
-  V_HU,             # 6
-  (weighted_a + V) / 2,   # 7  fused mean
-  sign(V − A) ]     # 8  ∈ {-1, 0, 1}
-```
-
-### ConstrainedKMeans — two-stage greedy assignment
-
-```python
-def _constrained_assign(X, centers, min_size):
-    # Stage 1: each cluster receives its min_size nearest samples first
-    # Stage 2: remaining samples are assigned to their nearest cluster
-```
-
-**Hard guarantee**: `min(cluster_size) ≥ 0.05 × n_voxels`.
-
-### Triple post-hoc validation
-
-1. **Force exactly 3 clusters** — split the largest cluster (KMeans k=2) or merge the smallest into its nearest neighbour.
-2. **Min-fraction ≥ 5 %** — iteratively merge under-sized clusters into the nearest cluster (max 5 iterations).
-3. **HU-ascending re-ordering** — enforce `μ₁ < μ₂ < μ₃` (Necrosis < Stroma < Hyper-vascular).
-
-> Detailed walkthrough in [说明文档.md §2](说明文档.md) and [ith_analysis.md](ith_analysis.md).
-
----
-
-## 📈 Stage B — Heterogeneity Feature Engineering
-
-| Index | Script | Features | What it captures |
-|---|---|---|---|
-| **DDI** — Distribution | [DDI.py](DDI.py) | 68 / phase | Between-/within-variance, centroid separation, histogram overlap, shape diversity (skew / kurt / entropy / IQR) |
-| **DEHI** — Dynamic Enhancement | [DEHI.py](DEHI.py) | 30 | Per-cluster strong / mild / no / wash-out ratios, A–V Pearson correlation, uniformity |
-| **SHI** — Spatial | [SHI.py](SHI.py) | 10 | Spherical-coordinate descriptors: radial concentration, azimuthal Gini, polar hemisphere bias, pattern diversity |
-| **THI** (composite) | merged | **120** | DDI(A+V) + DEHI + SHI + cluster fractions → `feature_thi.xlsx` |
-| **PyRadiomics** | [cal_rad_feature.py](cal_rad_feature.py) | **200** | Shape + first-order + GLCM / GLRLM / GLSZM / GLDM (both phases) |
-
-DDI composite (illustrative):
+## Repository layout
 
 ```text
-DDI = 0.30·Imbalance + 0.25·Separation + 0.25·Overlap_sep + 0.20·Shape_div
+PNEN-THI/
+├── README.md
+├── README_zh.md
+├── predict.py                 # MODELS · SCORES · CLINICAL · PRIOR; all inference
+├── train.py                   # one fixed-specification refitting entry
+├── weights.joblib             # selected fitted states in one shared bundle
+├── requirements.txt
+├── preprocessing/
+│   ├── io.py                  # NIfTI geometry and source-HU handling
+│   ├── learn_prior.py         # step 1: aggregate expert-point centroids
+│   ├── cluster.py             # step 2: constrained three-habitat clustering
+│   ├── heterogeneity.py       # step 3: 18 DDI / SHI / DEHI features
+│   ├── radiomics.py           # 200 Original dual-phase features
+│   └── requirements-radiomics.txt
+├── assets/
+│   └── study_workflow.png
+└── examples/
+    └── case_001/
+        ├── arterial.nii.gz
+        ├── venous.nii.gz
+        ├── tumor_roi.nii.gz
+        └── case.json
 ```
 
----
+The example preserves voxel values and spatial geometry with neutral filenames and cleaned NIfTI headers. **Tumor label is 2**; the ROI also contains non-target label 1. Inputs must share a **1-mm isotropic grid**, shape and affine, with anatomical alignment checked before inference. A matching grid alone does not establish registration.
 
-## 🎯 Stage C — Ordinal Grade Prediction
+The shared weight file excludes cohort tables and research-run outputs. Fitted SVCs still contain support vectors, and kNN retains its reference vectors/classes as part of the estimator state. Private migration checks against the source model implementations agreed to an absolute error of **≤1e−12**; this verifies inference migration, without estimating performance from the released example.
 
-### Feature selection — fit on training fold only
-
-`OrdinalFeatureSelector` (in [classifier.ipynb](classifier.ipynb)):
-
-```text
-Missing/Variance ──► Kruskal-Wallis ──► Mutual Information ──► Spearman ρ ──► Top-K rank
- (>10% / <0.01)         (p > 0.05)          (< median MI)         (|ρ| ≥ 0.90)   (0.6·KW + 0.4·MI)
-```
-
-### Models × Combos
-
-<table>
-<tr>
-<th>Models (6)</th>
-<th>Feature combos (7)</th>
-</tr>
-<tr>
-<td>
-
-- `LR` — L2 / saga / C=0.005
-- `SVM` — RBF / C=1.0 / γ=0.01
-- `DT` — depth 3
-- `RF` — n=200 / depth 7
-- `GBDT` — n=200 / lr=0.01
-- `KNN` — k=15 / Manhattan
-
-</td>
-<td>
-
-- Clinical
-- Radiomics
-- Heterogeneity (THI)
-- Clinical + Radiomics
-- Clinical + Heterogeneity
-- Radiomics + Heterogeneity
-- **All** (C + R + H)
-
-</td>
-</tr>
-</table>
-
-All models use `class_weight='balanced'` to handle the G3 minority (~17 %) without SMOTE leakage.
-
-### Hyper-parameter search — [hyper_tune.py](hyper_tune.py)
-
-```text
-7 feature combos × 3 selector profiles (loose / standard / strict) × 6 models = 126 configurations
-StratifiedKFold(5, shuffle=True, random_state=42), scoring = roc_auc_ovr
-```
-
-### Ordinal-aware metrics
-
-| Metric | Why we use it |
-|---|---|
-| **QWK** (Quadratic Weighted Kappa) | **Primary** — penalises cross-grade errors more than adjacent ones |
-| **RPS** (Ranked Probability Score) | Calibration on cumulative class probabilities |
-| **Macro / Micro / Weighted AUC (OvR)** | Discrimination ability |
-| **Ordinal MAE** | Expected ordinal distance `mean(|y - ŷ|)` |
-| **Accuracy / F1 / PPV / NPV / Sensitivity / Specificity** | Per-class diagnostics |
-
----
-
-## 🔍 Stage D — Interpretation & Sub-analyses
-
-| Analysis | Location | Purpose |
-|---|---|---|
-| **SHAP** | `results/shap*` | Global + local feature attribution for the final ordinal model |
-| **Ki-67 correlation** | `results/figures_THI_Ki67/` ([figure.ipynb](figure.ipynb)) | Validate THI vs. Ki-67 proliferation index |
-| **Inter-/intra-rater ICC** | `ICC/` ([icc.ipynb](icc.ipynb)) | Reproducibility under 2 radiologists × 2 rounds |
-| **Tumor-size sub-group** | `results/subgroup/` | ≤ 2 cm vs. > 2 cm performance |
-| **Survival** | `results/survival0/` | Kaplan–Meier / Cox on (time, event) |
-| **Prior-vs-no-prior ablation** | [figure.ipynb](figure.ipynb) cell 5 | Quantify gain from expert prior |
-
----
-
-## 🚀 Quick Start
-
-### 1. Install
-
-```bash
-# Python ≥ 3.9 recommended
-pip install numpy pandas nibabel SimpleITK pyradiomics \
-            scikit-learn scipy seaborn matplotlib shap \
-            statsmodels openpyxl tqdm
-```
-
-### 2. Data layout
-
-```text
-data/
-├── crop_A/<id>.nii.gz       # Arterial-phase CT
-├── crop_V/<id>.nii.gz       # Venous-phase CT
-├── crop_ROI/<id>.nii.gz     # Mask (voxel value = 2 inside tumor)
-└── crop_DOT/<id>.nii.gz     # (Optional) expert annotations: voxel 1/2/3 → 3 classes
-```
-
-### 3. End-to-end run
-
-```bash
-# (1) Prior-guided clustering — main pipeline
-python point_cluster.py
-#   → cluster/point_prior_knowledge.pkl
-#   → cluster/with_point/<id>_clusters.nii.gz
-#   → cluster/with_point/results_summary.csv
-
-# (2) No-prior ablation (optional)
-python nonpoint_cluster.py
-#   → cluster/without_point/<id>_clusters.nii.gz
-
-# (3) Heterogeneity features
-python DDI.py    # → score/DDI/{A,V}_features.csv
-python DEHI.py   # → score/DEHI/DEHI_features.csv
-python SHI.py    # → score/SHI/spatial_heterogeneity_features.csv
-
-# (4) PyRadiomics features
-python cal_rad_feature.py  # → data/V_radiomics.csv (and similarly for A)
-
-# (5) Train / inter / external split
-python group.py            # → data/inter.csv, data/exter.csv
-
-# (6) Hyper-parameter search (optional)
-python hyper_tune.py       # → results/hyper_tune/
-
-# (7) Final classifier
-jupyter lab classifier.ipynb
-#   → results/best/{results, selected_features_summary.txt, results_proba.xlsx}
-```
-
-### 4. Key parameters
-
-| Script | Parameter | Default | Notes |
-|---|---|---|---|
-| `point_cluster.py` | `ARTERIAL_WEIGHT` | `2.0` | Arterial-HU weight in feature vector |
-| `point_cluster.py` | `MIN_CLUSTER_FRACTION` | `0.05` | Hard cluster-size constraint |
-| `point_cluster.py` | `n_clusters` | `3` | Fixed (biological tri-partition) |
-| `DDI.py` | `bins / hu_range` | `200 / (-160, 240)` | Histogram config |
-| `DEHI.py` | `hu_range` | `(-200, 200)` | Voxel HU filter |
-| `SHI.py` | `voxel_size` | `(1.0, 1.0, 1.0) mm` | Spacing for spherical geometry |
-| `group.py` | `test_size` | `0.3` | Inter-test fraction of TJ cohort |
-
----
-
-## ✅ Quality Guarantees
-
-For **every** patient processed by the prior-guided pipeline, the following invariants are **hard-enforced** by post-processing:
-
-```diff
-+ ✓ Exactly 3 clusters present (Label ∈ {1, 2, 3})
-+ ✓ Each cluster contains ≥ 5 % of tumor voxels
-+ ✓ Mean HU is monotonically increasing: μ₁ < μ₂ < μ₃
-+ ✓ Labels are biologically interpretable: Necrosis → Stroma → Hyper-vascular
-```
-
-These invariants ensure that downstream heterogeneity descriptors and the final ordinal classifier operate on a **consistent, semantically aligned representation** across the entire 546-patient cohort and any new patient processed with the same pipeline.
-
----
-
-## 💡 Key Design Choices
-
-| Component | Choice | Why |
-|---|---|---|
-| **Clustering** | `ConstrainedKMeans` + learned prior | Hard guarantee against empty / < 5 % clusters that vanilla GMM / KMeans produce on small lesions |
-| **n_clusters** | **Fixed at 3** | Aligns with histopathological tri-partition (necrosis / stroma / hyper-vascular) |
-| **Label semantics** | **HU-ascending re-ordering** | Removes the permutation ambiguity inherent in clustering — `Class 1` is always lowest density |
-| **Phase fusion** | `0.6 × A + 0.4 × (A − V)` | Arterial dominance with venous-enhancement complement |
-| **Feature scaling** | `RobustScaler` (q5–q95) | CT HU contains outliers from beam-hardening / partial volume; IQR-based scaling is more stable |
-| **Class imbalance** | `class_weight='balanced'` (no SMOTE) | Avoids over-sampling leakage; G3 ~ 17 % minority handled at model level |
-| **Model selection** | Six diverse classifiers | Covers linear (LR), kernel (SVM-RBF), and tree-ensemble (RF / GBDT) decision boundaries |
-| **Evaluation metric** | **Quadratic Weighted Kappa** | Penalises larger-rank errors more than adjacent — matches clinical cost of mis-grading |
-| **External validation** | 4 hospitals | Tests transportability across scanner vendors / acquisition protocols |
-
----
-
-## 🔁 Reproducibility
-
-- `random_state = 42` is fixed throughout splitting, KMeans, SMOTE-not-used, and model fitting.
-- The prior file `cluster/point_prior_knowledge.pkl` is a pickled `dict`; **regenerate** it via `learn_prior_knowledge()` in [point_cluster.py](point_cluster.py) whenever the annotation set changes.
-- The `ICC/` study uses a held-out subset annotated by **2 radiologists at 2 timepoints**, reporting ICC for cluster fractions, DDI, DEHI, SHI and downstream model probabilities.
-- Notebook outputs are heavy; strip them before commit:
-  ```bash
-  jupyter nbconvert --clear-output --inplace *.ipynb
-  ```
-
----
-
-## 📚 Documentation Map
-
-| File | Language | Content |
-|---|---|---|
-| **README.md** | English | This file — GitHub overview |
-| [说明文档.md](说明文档.md) | 中文 | Full framework specification (recommended for in-depth reading) |
-| [ith_analysis.md](ith_analysis.md) | 中文 | Stage-A clustering algorithm in depth |
-
----
-
-## 📖 Citation
-
-If you use this code or any of its derived feature tables, please cite the accompanying manuscript (under review) and acknowledge the **PNET-ITH** framework:
-
-```bibtex
-@misc{pnet-ith,
-  title  = {PNET-ITH: Pancreatic Neuroendocrine Tumor Intra-tumoral
-            Heterogeneity Analysis and Ordinal Grading Prediction},
-  note   = {Manuscript under review},
-  year   = {2026}
-}
-```
-
----
-
-## 📝 License
+## Use and citation
 
 For **academic and non-commercial research** use. Please contact the authors for clinical or commercial licensing.
 
----
-
-<div align="center">
-
-If you find this work useful, please ⭐ the repo — it helps others discover it.
-
-</div>
+Until formal manuscript citation metadata are provided, reference the [PNEN-THI repository](https://github.com/BobbyWang16/PNEN-THI). The manuscript and full research cohort are not included in this release.

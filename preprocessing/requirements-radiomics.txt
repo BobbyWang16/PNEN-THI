@@ -1,0 +1,4 @@
+# Use Python 3.9 for the published PyRadiomics 3.1.0 binary wheels.
+-r ../requirements.txt
+SimpleITK==2.5.5
+pyradiomics==3.1.0
