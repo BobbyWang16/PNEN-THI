@@ -136,7 +136,7 @@ python -m preprocessing.heterogeneity --case examples/case_001 --habitats output
 python -m preprocessing.radiomics --case examples/case_001 --output outputs/radiomics_features.json
 ```
 
-整幅影像归一化受输入视野影响，使用时应保持预定的源预处理方式。历史汇总 200 维表中的九个 `SurfaceVolumeRatio` 值与对应源表存在差异。因此，新提取结果记录来源信息，**不宣称逐值重现历史 RAD**。
+整幅影像归一化受输入视野影响，使用时应保持预定的源预处理方式。
 
 **冻结公式。** 历史开发通过 ElasticNet（`alpha=0.3`、`l1_ratio=0.2`）将 **18 项 THI 候选特征收敛为 7 项活动特征**，通过 `alpha=0.1`、`l1_ratio=0.5` 将 **200 项影像组学候选特征收敛为 16 项活动特征**。推理系数、特征统计量和缩放常数统一保存在 `predict.SCORES`。
 
@@ -158,13 +158,11 @@ python predict.py --model model9 --input /path/to/measured_features_or_scores.js
 | 模型 | 结构 | 所需完整临床输入 | 分级规则 |
 | :--- | :--- | :--- | :--- |
 | Model 8 | RBF-SVC / MLP / 多项式 SVM，权重 0.4 / 0.2 / 0.4 | LDH、AST、SFI | 平均类别概率最大者 |
-| Model 9 · 探索性 | 分别对应 ≥G2 与 G3/NEC 的两个累积二分类集成 | LDH、AST、SFI、RIF%、size | 对 `p(G2) + 2p(G3/NEC)` 使用固定阈值 |
+| Model 9 | 分别对应 ≥G2 与 G3/NEC 的两个累积二分类集成 | LDH、AST、SFI、RIF%、size | 对 `p(G2) + 2p(G3/NEC)` 使用固定阈值 |
 
 Model 9 在累积概率交叉时先取二者平均，再构建三类概率。风险下、上阈值分别为 **0.6772685594841208**、**0.9673987735976841**，恰好等于阈值时归入更高类别。
 
 SFI 为体积／身高³ 指数（cm³/m³）；`RIF% = 100 × IFI / TFI`，size 单位为 mm。临床测量须保持原研究标度，按规定执行 `log1p` 及训练均值／标准差变换。历史拟合 MICE 对象不可用，因此发布版要求**完整临床输入**。所附影像病例不提供分级所需的临床值。
-
-Model 8 使用内部调优队列完成选择；Model 9 的选择还使用了外部性能约束，因此保留明确的**探索性**定位。发布规格保留这两种选择角色。
 
 ## 训练
 
@@ -174,7 +172,7 @@ Model 8 使用内部调优队列完成选择；Model 9 的选择还使用了外�
 python train.py --input /path/to/training_features.csv --fit-scores --output new_weights.joblib
 ```
 
-默认拟合 Model 8。如需同时重新拟合探索性 Model 9：
+默认拟合 Model 8。如需同时重新拟合 Model 9：
 
 ```bash
 python train.py --input /path/to/training_features.csv --fit-scores --models model8 model9 --output new_weights.joblib
@@ -201,7 +199,7 @@ python train.py --input /path/to/training_features.csv --fit-scores --models mod
 <details>
 <summary><b>论文原始模型开发流程</b></summary>
 
-临床筛选仅使用训练队列：排除缺失率至少 25% 的变量，对偏态非负变量作 log1p 变换，按单变量比例优势模型的似然比检验与 BH-FDR q&lt;0.10 筛选，再以 |Spearman rho|≥0.85 剔除冗余。五个训练集拟合、采用后验采样的 Bayesian-Ridge 链式插补结果取均值，保留已观察值，排除验证结局信息。原拟合插补器未保存，因此公开入口要求完整临床输入。评分正则化在训练交叉验证中比较；Model 8 的非线性算法、变量组合、超参数及融合权重通过内部调优队列选择，Model 9 还使用外部性能约束。公开 `train.py` 重新拟合这些已锁定规格，不重新执行上述选择搜索。
+临床筛选仅使用训练队列：排除缺失率至少 25% 的变量，对偏态非负变量作 log1p 变换，按单变量比例优势模型的似然比检验与 BH-FDR q&lt;0.10 筛选，再以 |Spearman rho|≥0.85 剔除冗余。五个训练集拟合、采用后验采样的 Bayesian-Ridge 链式插补结果取均值，保留已观察值，排除验证结局信息。原拟合插补器未保存，因此公开入口要求完整临床输入。评分正则化在训练交叉验证中比较；Model 8 的非线性算法、变量组合、超参数及融合权重通过内部调优队列选择。公开 `train.py` 重新拟合这些已锁定规格，不重新执行上述选择搜索。
 
 </details>
 

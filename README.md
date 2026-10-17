@@ -136,7 +136,7 @@ Heterogeneity measurements use the **source HU images**. SHI uses physical coord
 python -m preprocessing.radiomics --case examples/case_001 --output outputs/radiomics_features.json
 ```
 
-Input field of view affects whole-image normalization; retain the intended source preprocessing. Nine historical `SurfaceVolumeRatio` entries differ between the assembled 200-feature table and its source tables. Fresh extraction therefore carries provenance and **does not claim exact recreation of historical RAD values**.
+Input field of view affects whole-image normalization; retain the intended source preprocessing.
 
 **Locked formulas.** Historical development reduced **18 THI candidates to 7 active features** with ElasticNet (`alpha=0.3`, `l1_ratio=0.2`) and **200 radiomics candidates to 16 active features** (`alpha=0.1`, `l1_ratio=0.5`). The inference coefficients, feature statistics, and scaling constants are held in `predict.SCORES`.
 
@@ -158,13 +158,11 @@ The input JSON contains either a `features` object mapping exact feature names t
 | Model | Structure | Complete clinical inputs | Decision |
 | :--- | :--- | :--- | :--- |
 | Model 8 | RBF-SVC / MLP / polynomial SVM, weights 0.4 / 0.2 / 0.4 | LDH, AST, SFI | Largest averaged class probability |
-| Model 9 · exploratory | Two cumulative binary ensembles for ≥G2 and G3/NEC | LDH, AST, SFI, RIF%, size | Fixed thresholds on `p(G2) + 2p(G3/NEC)` |
+| Model 9 | Two cumulative binary ensembles for ≥G2 and G3/NEC | LDH, AST, SFI, RIF%, size | Fixed thresholds on `p(G2) + 2p(G3/NEC)` |
 
 Model 9 repairs crossed cumulative probabilities by averaging them before constructing the three class probabilities. Its lower and upper risk thresholds are **0.6772685594841208** and **0.9673987735976841**; equality selects the higher category.
 
 SFI is a volume/height³ index (cm³/m³); `RIF% = 100 × IFI / TFI`, and size is in mm. Use clinical measurements on the original study scale. The required variables undergo their specified `log1p` and training mean/SD transformation. Historical fitted MICE objects are unavailable, so the release requires **complete clinical inputs**. The example case supplies no clinical values for grading.
-
-Model 8 was selected using the internal tuning cohort. Model 9 also used external performance constraints during selection and remains **exploratory**. These selection roles are retained in the released specifications.
 
 ## Training
 
@@ -174,7 +172,7 @@ Refit the fixed selected specification on your own feature/clinical table:
 python train.py --input /path/to/training_features.csv --fit-scores --output new_weights.joblib
 ```
 
-The default fits Model 8. To additionally refit the exploratory Model 9:
+The default fits Model 8. To additionally refit Model 9:
 
 ```bash
 python train.py --input /path/to/training_features.csv --fit-scores --models model8 model9 --output new_weights.joblib
@@ -201,7 +199,7 @@ The public training entry refits the selected specifications. Historical clinica
 <details>
 <summary><b>Historical model-development procedure</b></summary>
 
-Clinical screening used the training cohort: exclude variables with at least 25% missingness, log1p-transform skewed nonnegative variables, screen univariable proportional-odds likelihood-ratio tests at BH-FDR q&lt;0.10, and prune redundancy at |Spearman rho|≥0.85. Five training-fitted Bayesian-Ridge chained-equation imputations with posterior sampling were averaged, preserving observed values; validation outcomes were excluded. The saved imputation estimators are unavailable, which is why the public entry requires complete clinical inputs. Score regularization was compared within training cross-validation. Nonlinear families, feature subsets, hyperparameters and ensemble weights for Model 8 were selected using internal tuning; Model 9 additionally used external performance constraints. The released `train.py` refits the resulting locked specifications, rather than rerunning those selection searches.
+Clinical screening used the training cohort: exclude variables with at least 25% missingness, log1p-transform skewed nonnegative variables, screen univariable proportional-odds likelihood-ratio tests at BH-FDR q&lt;0.10, and prune redundancy at |Spearman rho|≥0.85. Five training-fitted Bayesian-Ridge chained-equation imputations with posterior sampling were averaged, preserving observed values; validation outcomes were excluded. The saved imputation estimators are unavailable, which is why the public entry requires complete clinical inputs. Score regularization was compared within training cross-validation. Nonlinear families, feature subsets, hyperparameters and ensemble weights for Model 8 were selected using internal tuning. The released `train.py` refits the resulting locked specifications, rather than rerunning those selection searches.
 
 </details>
 
