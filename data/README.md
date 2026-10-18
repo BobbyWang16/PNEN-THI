@@ -37,7 +37,7 @@ For a new case, use the same basename in every applicable folder, for example `c
 
 The example ROI also contains a non-target label 1, which the default calculation excludes. Convert your tumor mask to label 2 for the shared preparation and prediction entry points. Do not relabel every positive voxel as tumor if the map also includes pancreas or other structures. The individual method CLIs additionally support explicit `--tumor-label 1` for genuinely binary masks.
 
-`V` and `DOT` are intentionally empty in the released example: its original unregistered venous series and expert points are not supplied. They are not required to use the embedded prior and calculate image features. No point labels are generated automatically.
+`V` and `DOT` are intentionally empty in the released example: its original unregistered venous series and expert points are not supplied. They are not required to use the supplied prior and calculate image features. No point labels are generated automatically.
 
 ## 1 Prepare CT and segment the tumor
 
@@ -100,7 +100,7 @@ Existing target files are not overwritten. Choose a new output directory when re
 
 ## 4 Mark points and learn a prior
 
-This step is needed only to learn a new prior from **your own training cases**. Routine inference uses the released 100-case aggregate prior in `predict.PRIOR` and needs no DOT file.
+This step is needed only to learn a new prior from **your own training cases**. The already learned **100-case aggregate prior is [`../prior.json`](../prior.json) in the repository root**: three centroids with three arterial features each (a 3 × 3 matrix). `predict.PRIOR` loads this file for default image inference, which needs no DOT file or relearning.
 
 For each training case, create a sparse integer label image with the exact A geometry. In ITK-SNAP or your annotation tool, mark representative intratumoral **single-voxel points** using 1 = low, 2 = intermediate and 3 = high perfusion; leave all other voxels at 0. Inspect the point map over A and the consensus ROI, and save it as `data/DOT/<case_id>.nii.gz`. Keep phenotype meanings consistent across cases. A centroid or predicted habitat map is not a substitute for expert point annotations.
 
@@ -110,14 +110,14 @@ Package each annotated case with the same preparation command and its actual ide
 python -m preprocessing.learn_prior --cases outputs/cases/your_training_case_001 outputs/cases/your_training_case_002 --output outputs/prior.json
 ```
 
-Replace these training case names with your own prepared directories; they are not supplied examples. Only points inside the selected tumor contribute, and the training set must collectively contain all three point classes. The learner pools normalized arterial intensity, 3 × 3 × 3 local SD and 3D Sobel magnitude at valid points, takes the coordinatewise median for each class, and orders the three centroids by arterial intensity. `prior.json` stores these aggregate centroids and annotation counts. No validation cases or pathological grades enter this calculation.
+Replace these training case names with your own prepared directories; they are not supplied examples. Only points inside the selected tumor contribute, and the training set must collectively contain all three point classes. The learner pools normalized arterial intensity, 3 × 3 × 3 local SD and 3D Sobel magnitude at valid points, takes the coordinatewise median for each class, and orders the three centroids by arterial intensity. `outputs/prior.json` stores your new aggregate centroids and annotation counts. No validation cases or pathological grades enter this calculation.
 
 ## 5 Cluster three habitats
 
-Use the released embedded prior:
+From the repository root, explicitly select the supplied prior (omitting `--prior` uses the same file):
 
 ```bash
-python -m preprocessing.cluster --case outputs/cases/case_001 --output outputs/case_001/habitats.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior prior.json --output outputs/case_001/habitats.nii.gz
 ```
 
 Or supply your training-derived prior:
@@ -145,8 +145,10 @@ python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs
 For the complete image workflow in one call, use the unified prediction script. It performs clustering and feature extraction internally:
 
 ```bash
-python predict.py --thi-only --case outputs/cases/case_001 --output-dir outputs/demo_thi
-python predict.py --score-only --case outputs/cases/case_001 --output-dir outputs/demo_scores
+python predict.py --thi-only --case outputs/cases/case_001 --prior prior.json --output-dir outputs/demo_thi
+python predict.py --score-only --case outputs/cases/case_001 --prior prior.json --output-dir outputs/demo_scores
 ```
+
+The same `--prior` option also works with `--model model3 --case ...`. Replace `prior.json` with `outputs/prior.json` to use your own learned prior; default commands without this option remain valid.
 
 The first command requires the base dependencies; the second also requires `preprocessing/requirements-radiomics.txt`. Both write derived habitat maps, measured features and `result.json`. Neither needs clinical measurements. For three-tier grading, Models 2, 3 and 6 use image scores alone; other models additionally need their specified clinical measurements. See the model-input table in the [main README](../README.md#grading), and its [Training section](../README.md#training) for feature tables and fixed-specification fitting.

@@ -1,7 +1,8 @@
 """PNET-ITH: one entry point for the frozen grading models.
 
-Model definitions, score formulas, clinical transforms, and the main expert
-prior live in the dictionaries below. Selected historical fitted estimators
+Model definitions, score formulas and clinical transforms live in the
+dictionaries below. PRIOR reads the learned aggregate from prior.json.
+Selected historical fitted estimators
 are read from one shared root-level weights.joblib. Image methods and feature
 extraction live in preprocessing/. No search or evaluation suite is required.
 """
@@ -548,38 +549,7 @@ CLINICAL = {
     },
 }
 
-PRIOR = {
-    "artifact_schema": "pnet-ith.aggregate-prior.v1",
-    "source_prior_schema_version": 2,
-    "feature_names": ["arterial_intensity", "arterial_local_sd", "arterial_gradient"],
-    "centroid_labels": [1, 2, 3],
-    "centroids": [
-        [0.5099999904632568, 0.04277978464961052, 0.9906561374664307],
-        [0.6675000190734863, 0.038093049079179764, 0.8726218342781067],
-        [0.9049999713897705, 0.04897499457001686, 1.0915222764015198],
-    ],
-    "n_training_cases": 100,
-    "aggregation": "coordinatewise_median_of_pooled_points_by_phenotype",
-    "prior_role": "arterial_centroid_initialization_only",
-    "source_sha256": "6eae3fbb96191cc67ab15f073f0a5817a5872d03969cdb07dd7acc1988df7839",
-    "image_feature_preprocessing": {
-        "arterial_hu_transform": "clip((HU+160)/400,0,1)",
-        "local_sd_window": [3, 3, 3],
-        "local_sd_ddof": 0,
-        "gradient": "sqrt(sum(sobel(normalized_arterial,axis)**2_for_axis_0_1_2))",
-        "boundary_mode": "reflect",
-        "centroid_space": "fixed_normalized_image_features_before_per_tumor_robust_scaling",
-    },
-    "clustering_specification": {
-        "n_habitats": 3,
-        "min_cluster_fraction": 0.05,
-        "max_iterations": 100,
-        "relative_tolerance": 0.0001,
-        "random_state": 42,
-        "block_normalization": "robust_scale_then_divide_by_sqrt_retained_dimension",
-    },
-    "manuscript_reproduction_verified": False,
-}
+PRIOR = json.loads(Path(__file__).with_name("prior.json").read_text(encoding="utf-8"))
 
 CASE_SPEC = {
     "artifact_schema": "pnet-ith.real-case-contract.v1",
@@ -875,6 +845,11 @@ def main():
     )
     parser.add_argument("--weights", type=Path, help="Shared frozen estimator bundle")
     parser.add_argument(
+        "--prior",
+        type=Path,
+        help="Learned aggregate JSON for THI image processing; defaults to the released prior.json",
+    )
+    parser.add_argument(
         "--output-dir", type=Path, help="Write habitat maps, measured features and result.json"
     )
     args = parser.parse_args()
@@ -904,6 +879,10 @@ def main():
             needed = set(model_inputs(args.model)) if args.model else {"THI", "RAD"}
             if args.thi_only:
                 needed = {"THI"}
+            if args.prior is not None and (args.case is None or "THI" not in needed):
+                parser.error(
+                    "--prior requires --case with a model or scoring action that uses THI"
+                )
             if (
                 args.input is None
                 and args.case is None
@@ -931,7 +910,7 @@ def main():
 
                     features = prepare_case(
                         args.case,
-                        PRIOR,
+                        args.prior if args.prior is not None else PRIOR,
                         include_radiomics="RAD" in needed,
                         output_dir=args.output_dir,
                     )

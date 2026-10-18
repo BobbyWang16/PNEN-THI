@@ -37,7 +37,7 @@ data/
 
 示例 ROI 还包含非目标标签 1，默认计算会排除它。使用统一整理和预测入口时，请将自己的肿瘤掩膜保存为标签 2；如果标签图还含胰腺等其他结构，不要把所有正值都改成肿瘤。独立的方法模块另外支持用 `--tumor-label 1` 显式处理真正的二值掩膜。
 
-发布示例的 `V` 和 `DOT` 目录有意留空：没有提供它的原始未配准静脉期和专家点标注。直接使用内置先验计算影像特征时，不需要这两类文件；程序不会自动编造点标注。
+发布示例的 `V` 和 `DOT` 目录有意留空：没有提供它的原始未配准静脉期和专家点标注。直接使用发布的先验计算影像特征时，不需要这两类文件；程序不会自动编造点标注。
 
 ## 1 预处理与肿瘤分割
 
@@ -100,7 +100,7 @@ outputs/cases/case_001/
 
 ## 4 标记专家点并生成先验文件
 
-只有在使用**自己的训练病例**重新学习先验时才需要这一步。常规推理直接调用 `predict.PRIOR` 中发布的 100 例聚合先验，无需 DOT。
+只有在使用**自己的训练病例**重新学习先验时才需要这一步。**已学习好的 100 例聚合先验位于仓库根目录的 [`../prior.json`](../prior.json)**：三个中心，每个中心对应三项动脉期特征，即 3 × 3 矩阵。`predict.PRIOR` 默认读取该文件，常规影像推理无需 DOT 或重新学习。
 
 为每例训练图像建立与 A 几何完全一致的稀疏整数标签图。在 ITK-SNAP 或自己的标注工具中，选择肿瘤内部具有代表性的**单体素点**：1 为低灌注、2 为中灌注、3 为高灌注，其余位置保持 0。将点图叠加到 A 和共识 ROI 上复核，保存为 `data/DOT/<case_id>.nii.gz`。不同病例的类别含义必须保持一致。聚类中心或预测生境图不能代替专家点标注。
 
@@ -110,14 +110,14 @@ outputs/cases/case_001/
 python -m preprocessing.learn_prior --cases outputs/cases/your_training_case_001 outputs/cases/your_training_case_002 --output outputs/prior.json
 ```
 
-将命令中的训练病例名替换为自己的已整理目录，这些训练病例不包含在发布示例中。仅位于选定肿瘤内部的点参与学习，全部训练病例合计须包含三类点。程序提取归一化动脉期强度、3 × 3 × 3 局部标准差和三维 Sobel 梯度幅值，汇总各类有效点后取逐坐标中位数，再按动脉期强度排列三个中心。`prior.json` 保存聚合中心和点数统计；不使用验证病例或病理分级。
+将命令中的训练病例名替换为自己的已整理目录，这些训练病例不包含在发布示例中。仅位于选定肿瘤内部的点参与学习，全部训练病例合计须包含三类点。程序提取归一化动脉期强度、3 × 3 × 3 局部标准差和三维 Sobel 梯度幅值，汇总各类有效点后取逐坐标中位数，再按动脉期强度排列三个中心。`outputs/prior.json` 保存自己新学得的聚合中心和点数统计；不使用验证病例或病理分级。
 
 ## 5 聚类生成三类生境
 
-使用发布的内置先验：
+从仓库根目录显式调用发布的先验（省略 `--prior` 时默认读取同一文件）：
 
 ```bash
-python -m preprocessing.cluster --case outputs/cases/case_001 --output outputs/case_001/habitats.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior prior.json --output outputs/case_001/habitats.nii.gz
 ```
 
 或者调用自己的训练先验：
@@ -145,8 +145,10 @@ python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs
 也可用统一预测脚本一次完成影像流程，它会在内部进行聚类和特征提取：
 
 ```bash
-python predict.py --thi-only --case outputs/cases/case_001 --output-dir outputs/demo_thi
-python predict.py --score-only --case outputs/cases/case_001 --output-dir outputs/demo_scores
+python predict.py --thi-only --case outputs/cases/case_001 --prior prior.json --output-dir outputs/demo_thi
+python predict.py --score-only --case outputs/cases/case_001 --prior prior.json --output-dir outputs/demo_scores
 ```
+
+`--model model3 --case ...` 同样支持 `--prior`。把 `prior.json` 换为 `outputs/prior.json` 即可调用自己的训练先验；原先省略此选项的默认命令仍然有效。
 
 第一条只需基础依赖；第二条还需安装 `preprocessing/requirements-radiomics.txt`。两者均保存生境图、实测特征和 `result.json`，均无需临床值。三分类分级中，Model 2、3、6 仅使用影像评分，其余模型还需各自指定的临床测量。输入要求见[项目说明的模型表](../README_zh.md#分级推理)，特征表和固定方案拟合见[训练部分](../README_zh.md#训练)。

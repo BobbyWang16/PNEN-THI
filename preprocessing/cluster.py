@@ -235,7 +235,10 @@ class _Analyzer:
         if len(self.prior_knowledge.cluster_centroids) != self.n_clusters:
             raise ValueError("expert prior must contain exactly three centroids")
         raw = np.asarray(
-            [self.prior_knowledge.cluster_centroids[index + 1] for index in range(self.n_clusters)],
+            [
+                self.prior_knowledge.cluster_centroids[index + 1]
+                for index in range(self.n_clusters)
+            ],
             dtype=np.float64,
         )
         arterial_keep = metadata["arterial_keep"]
@@ -328,7 +331,7 @@ def main():
     parser.add_argument(
         "--prior",
         type=Path,
-        help="Aggregate JSON prior from step 1; defaults to the released PRIOR dictionary",
+        help="Learned aggregate JSON; defaults to the released root-level prior.json",
     )
     parser.add_argument("--output", required=True, type=Path, help="Habitat NIfTI (.nii.gz)")
     parser.add_argument("--tumor-label", type=int, choices=(1, 2), default=2)

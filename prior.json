@@ -1,0 +1,56 @@
+{
+  "artifact_schema": "pnet-ith.aggregate-prior.v1",
+  "source_prior_schema_version": 2,
+  "feature_names": [
+    "arterial_intensity",
+    "arterial_local_sd",
+    "arterial_gradient"
+  ],
+  "centroid_labels": [
+    1,
+    2,
+    3
+  ],
+  "centroids": [
+    [
+      0.5099999904632568,
+      0.04277978464961052,
+      0.9906561374664307
+    ],
+    [
+      0.6675000190734863,
+      0.038093049079179764,
+      0.8726218342781067
+    ],
+    [
+      0.9049999713897705,
+      0.04897499457001686,
+      1.0915222764015198
+    ]
+  ],
+  "n_training_cases": 100,
+  "aggregation": "coordinatewise_median_of_pooled_points_by_phenotype",
+  "prior_role": "arterial_centroid_initialization_only",
+  "source_sha256": "6eae3fbb96191cc67ab15f073f0a5817a5872d03969cdb07dd7acc1988df7839",
+  "image_feature_preprocessing": {
+    "arterial_hu_transform": "clip((HU+160)/400,0,1)",
+    "local_sd_window": [
+      3,
+      3,
+      3
+    ],
+    "local_sd_ddof": 0,
+    "gradient": "sqrt(sum(sobel(normalized_arterial,axis)**2_for_axis_0_1_2))",
+    "boundary_mode": "reflect",
+    "centroid_space": "fixed_normalized_image_features_before_per_tumor_robust_scaling"
+  },
+  "clustering_specification": {
+    "n_habitats": 3,
+    "min_cluster_fraction": 0.05,
+    "max_iterations": 100,
+    "relative_tolerance": 0.0001,
+    "random_state": 42,
+    "block_normalization": "robust_scale_then_divide_by_sqrt_retained_dimension"
+  },
+  "manuscript_reproduction_verified": false
+}
