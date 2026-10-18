@@ -37,7 +37,7 @@ data/
 
 示例 ROI 还包含非目标标签 1，默认计算会排除它。使用统一整理和预测入口时，请将自己的肿瘤掩膜保存为标签 2；如果标签图还含胰腺等其他结构，不要把所有正值都改成肿瘤。独立的方法模块另外支持用 `--tumor-label 1` 显式处理真正的二值掩膜。
 
-发布示例的 `V` 和 `DOT` 目录有意留空：没有提供它的原始未配准静脉期和专家点标注。直接使用发布的先验计算影像特征时，不需要这两类文件；程序不会自动编造点标注。
+发布示例包含 `A、V2A、ROI`，`V` 和 `DOT` 目录留空；使用已发布先验时无需这两类文件。
 
 ## 1 预处理与肿瘤分割
 
@@ -94,13 +94,13 @@ outputs/cases/case_001/
 └── points.nii.gz             # 仅在存在有效的同名 DOT 时生成副本
 ```
 
-整理后的 `venous.nii.gz` 始终取自 **V2A**，不会读取未配准的 `V`。同名 DOT 存在时自动校验并复制；没有 DOT 就不生成点图。新增患者图像应留在本地，默认版本控制只允许提交已整理的公开示例。
+整理后的 `venous.nii.gz` 取自 **V2A**；存在同名 DOT 时自动校验并复制。新增患者图像留在本地，默认版本控制只收录已整理的公开示例。
 
 脚本不覆盖已有目标文件。重复整理，或给已整理的病例补加 DOT 后，请选择新的输出目录。
 
 ## 4 标记专家点并生成先验文件
 
-只有在使用**自己的训练病例**重新学习先验时才需要这一步。**已学习好的先验位于仓库根目录的 [`point_prior_n100.pkl`](../point_prior_n100.pkl)**，保留原始 schema 2 的 pickle 字典格式。它汇总 **100 例训练病例的 3,390 个专家点**；`cluster_centroids` 将标签 1/2/3 映射到三个各含三项动脉期特征的 NumPy 数组，`provenance` 保存汇总计数。`predict.PRIOR` 默认读取该文件，常规影像推理无需 DOT 或重新学习。只加载来源可信的 pickle 文件。
+程序默认读取已发布的 **[`point_prior_n100.pkl`](../point_prior_n100.pkl)**。仅在使用**自己的训练病例**学习新先验时执行本步骤；原始 pickle 格式与来源见[核心方法](../README_zh.md#核心方法)。只加载来源可信的 pickle 文件。
 
 为每例训练图像建立与 A 几何完全一致的稀疏整数标签图。在 ITK-SNAP 或自己的标注工具中，选择肿瘤内部具有代表性的**单体素点**：1 为低灌注、2 为中灌注、3 为高灌注，其余位置保持 0。将点图叠加到 A 和共识 ROI 上复核，保存为 `data/DOT/<case_id>.nii.gz`。不同病例的类别含义必须保持一致。聚类中心或预测生境图不能代替专家点标注。
 
@@ -110,7 +110,7 @@ outputs/cases/case_001/
 python -m preprocessing.learn_prior --cases outputs/cases/your_training_case_001 outputs/cases/your_training_case_002 --output outputs/point_prior.pkl
 ```
 
-将命令中的训练病例名替换为自己的已整理目录，这些训练病例不包含在发布示例中。先验学习仅使用 **A、ROI 和 DOT**。仅位于选定肿瘤内部的点参与学习，全部训练病例合计须包含三类点。程序提取归一化动脉期强度、3 × 3 × 3 局部标准差和三维 Sobel 梯度幅值，汇总各类有效点后取逐坐标中位数，再按动脉期强度排列三个中心。`outputs/point_prior.pkl` 以兼容的 pickle 字典保存自己新学得的聚合中心和点数统计；不使用验证病例或病理分级。
+将占位病例名替换为自己的已整理训练目录。学习仅使用 **A、ROI 和 DOT**，训练病例的肿瘤内部须合计包含三类点。程序按类汇总归一化动脉强度、3 × 3 × 3 局部标准差和三维 Sobel 梯度幅值，取逐坐标中位数，形成按强度排列的三个中心。输出 pickle 保存聚合中心和标注计数；验证病例与病理分级不参与计算。
 
 ## 5 聚类生成三类生境
 
@@ -120,11 +120,7 @@ python -m preprocessing.learn_prior --cases outputs/cases/your_training_case_001
 python -m preprocessing.cluster --case outputs/cases/case_001 --prior point_prior_n100.pkl --output outputs/case_001/habitats.nii.gz
 ```
 
-或者调用自己的训练先验：
-
-```bash
-python -m preprocessing.cluster --case outputs/cases/case_001 --prior outputs/point_prior.pkl --output outputs/case_001/habitats.nii.gz
-```
+调用自己的训练先验时，将 `--prior point_prior_n100.pkl` 替换为 `--prior outputs/point_prior.pkl`。
 
 方法使用 `[A, local SD(A), Sobel(A), V, V − A]`，进行固定 HU 归一化和病例内分块缩放，先验用于初始化动脉期特征维度。约束 K-means 生成**三类生境**，每类至少占肿瘤的 **5%**。输出 0 为背景，1、2、3 按动脉期平均强度从低到高排列。这是计算得到的生境标签，与 ROI 和 DOT 标注分别保存。
 
@@ -142,13 +138,10 @@ python -m preprocessing.heterogeneity --case outputs/cases/case_001 --habitats o
 python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs/case_001/radiomics_features.json
 ```
 
-也可用统一预测脚本一次完成影像流程，它会在内部进行聚类和特征提取：
+也可用统一入口一次完成聚类、特征提取和 THI／RAD 两个评分：
 
 ```bash
-python predict.py --thi-only --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/demo_thi
 python predict.py --score-only --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/demo_scores
 ```
 
-`--model model3 --case ...` 同样支持 `--prior`。把 `point_prior_n100.pkl` 换为 `outputs/point_prior.pkl` 即可调用自己的训练先验；原先省略此选项的默认命令仍然有效。
-
-第一条只需基础依赖；第二条还需安装 `preprocessing/requirements-radiomics.txt`。两者均保存生境图、实测特征和 `result.json`，均无需临床值。三分类分级中，Model 2、3、6 仅使用影像评分，其余模型还需各自指定的临床测量。输入要求见[项目说明的模型表](../README_zh.md#分级推理)，特征表和固定方案拟合见[训练部分](../README_zh.md#训练)。
+此命令需要安装 `preprocessing/requirements-radiomics.txt`。仅计算 THI 时，将 `--score-only` 换为 `--thi-only`，使用基础依赖即可。输出包括生境图、实测特征和 `result.json`。Model 2、3、6 还可直接根据影像评分分级，其余模型需要表中列出的临床输入；详见[分级推理](../README_zh.md#分级推理)与[训练](../README_zh.md#训练)。
