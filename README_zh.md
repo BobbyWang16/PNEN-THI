@@ -94,10 +94,12 @@ python predict.py --thi-only --case outputs/cases/case_001 --output-dir outputs/
 python predict.py --score-only --case outputs/cases/case_001 --output-dir outputs/demo_scores
 ```
 
-此命令还输出 `radiomics_features.json`，记录提取设置与来源说明。同一入口可查看两个分级模型的规格：
+此命令还输出 `radiomics_features.json`，记录提取设置与来源说明。同一入口可查看任一分级模型的规格：
 
 ```bash
 python predict.py --list-models
+python predict.py --describe model1
+python predict.py --describe model7
 python predict.py --describe model8
 python predict.py --describe model9
 ```
@@ -179,53 +181,107 @@ python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs
 
 ## 分级推理
 
-两个模型共用**一个 `predict.py` 和一个 `weights.joblib`**。`MODELS` 保存组件、权重、输入顺序、超参数和分级规则，`CLINICAL` 保存固定的临床变量变换。输入实际测得的特征或已归一化评分，以及真实临床测量：
+Model 1–9 共用**一个 `predict.py` 和一个共享权重包**。`MODELS` 保存各模型的输入、结构和分级规则，`CLINICAL` 保存临床变量变换。Model 1–7 均为无惩罚的比例优势 Logistic 模型，学习特征系数及两个有序截点，输出三类概率并取概率最大者作为分级。
+
+| 模型 | 临床输入 | 影像评分 | 结构／分级规则 |
+| :--- | :--- | :--- | :--- |
+| Model 1 | size、SFI、TFI、LDH、AST、IFI、RIF% | 无 | 比例优势模型／最大类别概率 |
+| Model 2 | 无 | RAD | 比例优势模型／最大类别概率 |
+| Model 3 | 无 | THI | 比例优势模型／最大类别概率 |
+| Model 4 | size、SFI、TFI、LDH、AST、IFI、RIF% | RAD | 比例优势模型／最大类别概率 |
+| Model 5 | size、SFI、TFI、LDH、AST、IFI、RIF% | THI | 比例优势模型／最大类别概率 |
+| Model 6 | 无 | RAD、THI | 比例优势模型／最大类别概率 |
+| Model 7 | SFI、TFI、IFI | RAD、THI | 比例优势模型／最大类别概率 |
+| Model 8 | LDH、AST、SFI | RAD、THI | RBF-SVC／MLP／多项式 SVM，权重 0.4／0.2／0.4；最大平均类别概率 |
+| Model 9 | LDH、AST、SFI、RIF%、size | RAD、THI | 两个累积二分类集成／固定风险阈值 |
+
+Model 1–6 使用 `MODELS` 中内置的参数；Model 7 使用 `train.py` 生成的权重包；Model 8、9 使用所附 `weights.joblib`。
+
+```bash
+python predict.py --model model1 --input /path/to/clinical_only.json
+python predict.py --model model2 --input /path/to/rad_features_or_score.json
+python predict.py --model model3 --input /path/to/thi_features_or_score.json
+python predict.py --model model7 --input /path/to/measured_features_or_scores.json --clinical /path/to/clinical.json --weights model7.joblib
+```
+
+任一模型重新训练后，通过 `--weights` 指定新的共享权重包：
+
+```bash
+python predict.py --model model6 --input /path/to/measured_features_or_scores.json --weights models1_7.joblib
+```
+
+将 `--model` 改为 `model4`、`model5` 或 `model6` 即可调用对应拟合结果。仅要求所选模型需要的输入：Model 1 无需影像或影像评分，Model 2 无需 THI 或临床数据，Model 3 无需 RAD 或临床数据。Model 8、9 的调用方式为：
 
 ```bash
 python predict.py --model model8 --input /path/to/measured_features_or_scores.json --clinical /path/to/clinical.json --weights weights.joblib
 python predict.py --model model9 --input /path/to/measured_features_or_scores.json --clinical /path/to/clinical.json --weights weights.joblib
 ```
 
-输入 JSON 使用 `features` 对象保存“精确特征名 → 测量值”，或使用 `scores` 对象保存已截断至 0–1 的 `THI` 和 `RAD`。临床 JSON 保存“临床变量名 → 原始实测值”；这些匹配值也可直接放在输入 JSON 的 `clinical` 对象中。
+输入 JSON 使用 `features` 对象保存“精确特征名 → 测量值”，或使用 `scores` 对象保存所需且已截断至 0–1 的 `THI` 和／或 `RAD`。临床 JSON 保存“所需临床变量名 → 原始实测值”；这些值也可直接放在输入 JSON 的 `clinical` 对象中。Model 1 的输入只需包含这个 `clinical` 对象。
 
-| 模型 | 结构 | 所需完整临床输入 | 分级规则 |
-| :--- | :--- | :--- | :--- |
-| Model 8 | RBF-SVC / MLP / 多项式 SVM，权重 0.4 / 0.2 / 0.4 | LDH、AST、SFI | 平均类别概率最大者 |
-| Model 9 | 分别对应 ≥G2 与 G3/NEC 的两个累积二分类集成 | LDH、AST、SFI、RIF%、size | 对 `p(G2) + 2p(G3/NEC)` 使用固定阈值 |
+影像模型可以用 `--case` 替代 `--input`。Model 2、3、6 无需 `--clinical`；Model 3、5 仅计算 THI，无需提取影像组学：
+
+```bash
+python predict.py --model model3 --case outputs/cases/case_001 --output-dir outputs/model3
+```
 
 Model 9 在累积概率交叉时先取二者平均，再构建三类概率。风险下、上阈值分别为 **0.6772685594841208**、**0.9673987735976841**，恰好等于阈值时归入更高类别。
 
-SFI 为体积／身高³ 指数（cm³/m³）；`RIF% = 100 × IFI / TFI`，size 单位为 mm。临床测量须保持原研究标度，按规定执行 `log1p` 及训练均值／标准差变换。历史拟合 MICE 对象不可用，因此发布版要求**完整临床输入**。所附影像病例不提供分级所需的临床值。
+SFI、TFI、IFI 均为体积／身高³ 指数（cm³/m³）；`RIF% = 100 × IFI / TFI`，size 单位为 mm。临床测量须保持原研究标度，按规定执行 `log1p` 及训练均值／标准差变换。历史拟合 MICE 对象不可用，因此使用临床变量的模型要求**完整临床输入**。所附影像病例不提供临床测量值。
 
 ## 训练
 
-使用自己的特征／临床表重新拟合选定的固定规格：
+同一训练入口可选择单个、多个或全部九个模型。一次训练 Model 1–7，并拟合这些模型所需的影像评分公式：
 
 ```bash
-python train.py --input /path/to/training_features.csv --fit-scores --output new_weights.joblib
+python train.py --input /path/to/training_features.csv --models model1 model2 model3 model4 model5 model6 model7 --fit-scores --output models1_7.joblib
 ```
 
-默认拟合 Model 8。如需同时重新拟合 Model 9：
+训练单个模型时，仅需提供它需要的临床及影像特征列。Model 1 使用临床表，无需 `--fit-scores`；Model 2、3 分别只拟合对应评分：
 
 ```bash
-python train.py --input /path/to/training_features.csv --fit-scores --models model8 model9 --output new_weights.joblib
+python train.py --input /path/to/clinical_training.csv --models model1 --output model1.joblib
+python train.py --input /path/to/rad_training.csv --models model2 --fit-scores --output model2.joblib
+python train.py --input /path/to/thi_training.csv --models model3 --fit-scores --output model3.joblib
+python train.py --input /path/to/training_features.csv --models model7 --fit-scores --output model7.joblib
+```
+
+将全部九个模型存入一个权重包，或使用默认的 Model 8：
+
+```bash
+python train.py --input /path/to/training_features.csv --models all --fit-scores --output newly_trained.joblib
+python train.py --input /path/to/training_features.csv --fit-scores --output model8.joblib
+```
+
+| 训练参数 | 默认值 | 含义 |
+| :--- | :--- | :--- |
+| `--input` | 必填 | 包含临床测量、影像特征或折外评分的 CSV |
+| `--output` | 必填 | 一个新的 `.joblib` 权重包，不覆盖已有文件 |
+| `--models` | `model8` | 可选择一个或多个 `model1`–`model9`，或 `all` |
+| `--fit-scores` | 关闭 | 仅重新拟合所选模型需要的 THI／RAD 公式 |
+| `--cohort-column` | `Cohort` | 标识数据分区的列名 |
+| `--training-label` | `training` | 仅拟合队列列取该值的行 |
+| `--grade-column` | `Grade_ordinal` | 有序结局列名，编码为 0／1／2 |
+
+```bash
+python train.py --help
 ```
 
 | CSV 列 | 要求 |
 | :--- | :--- |
 | `Cohort` | 仅取值为 `training` 的行参与拟合 |
 | `Grade_ordinal` | 0 = G1，1 = G2，2 = G3/NEC |
-| `LDH`、`AST`、`SFI` | 完整的原始临床测量 |
-| `RIF%`、`size` | Model 9 额外需要 |
-| 七项 THI 与十六项 RAD 特征 | 使用 `SCORES[name]['terms']` 列出的精确原始特征名 |
+| 临床列 | 上表中所选模型需要的变量，使用完整原始测量值 |
+| 七项 THI 和／或十六项 RAD 特征 | 使用 `--fit-scores` 时，仅需所选评分对应的 `SCORES[name]['terms']` 精确原始特征名 |
+| THI／RAD 评分及来源列 | 不使用 `--fit-scores` 时，仅提供所需评分的归一化折外值，详见下文 |
 
-五折分层要求**每个等级至少五例训练病例**。已有特征列中的缺失值采用训练折中位数，全缺失或常量特征被移除；临床测量必须完整。可通过 `python train.py --help` 中的选项修改队列列、等级列及训练标签。
+训练行须包含全部三个等级。拟合影像评分时，五折分层要求**每个等级至少五例训练病例**。已有影像特征列中的缺失值采用训练折中位数，全缺失或常量特征被移除；所需临床测量必须完整。Model 1 不需要影像特征或评分来源列。
 
 **评分拟合。** 脚本用五折 `StratifiedKFold`（`shuffle=True`，种子 **20260720**）重新拟合锁定的 7／16 项特征集。各折仅在对应训练分区学习中位数插补、方差过滤、总体标准差标准化和 ElasticNet；评分方向根据该训练分区中与有序等级的 Spearman 相关确定，中心化／缩放也在该分区学习。训练折外评分定义 P1/P99，随后在全部训练行拟合面向新病例的最终公式。
 
-**分级拟合。** 临床均值／标准差仅从提供的训练行学习，变换选择、模型组件、超参数、权重与分级阈值保持固定。新权重包保存自己的临床变换及评分公式，`predict.py` 优先使用这些值。输出标记为 **`locked_spec_refit_not_historical_frozen`**：锁定活动特征集的新拟合，与历史全部候选特征的开发拟合存在数值差异。脚本不进行模型搜索、阈值重新调优或性能实验。
+**分级拟合。** Model 1–7 通过 SciPy L-BFGS-B 最大化无惩罚的比例优势似然（`maxiter=2000`、`ftol=1e−11`、`gtol=1e−7`），分别学习所选特征的系数及两个有序截点；Model 7 的最终输入顺序为 **[SFI、TFI、IFI、RAD、THI]**。Model 8、9 重新拟合固定组件，保留集成权重与分级规则。临床均值／标准差仅从训练行学习，变换选择固定。所有选定模型、拟合后的临床变换及所需评分公式统一保存在**一个权重包**中，`predict.py --weights` 调用这些拟合值。脚本不进行特征选择搜索或性能实验。
 
-不使用 `--fit-scores` 时，须提供 `THI`／`RAD`（或 `THI_score_01`／`RAD_score_01`），并提供 `THI_score_source`／`RAD_score_source`。接受 `out_of_fold`、`nested_oof`，或原有 `training_locked_7_feature_5fold_OOF_refit`／`training_locked_16_feature_5fold_OOF_refit` 来源标签。该路径要求所供评分与发布的推理公式及缩放一致；新数据集使用 `--fit-scores` 可保持新公式与评分配套。
+不使用 `--fit-scores` 时，须提供所需的 `THI` 和／或 `RAD`（或 `THI_score_01`／`RAD_score_01`），并提供对应 `THI_score_source`／`RAD_score_source` 列。接受 `out_of_fold`、`nested_oof`，或原有 `training_locked_7_feature_5fold_OOF_refit`／`training_locked_16_feature_5fold_OOF_refit` 来源标签。该路径要求所供评分与发布的推理公式及缩放一致；新数据集使用 `--fit-scores` 可保持新公式与评分配套。
 
 公开训练入口重新拟合已选定规格，不重建历史临床筛选或后验 MICE 插补。固定活动特征与共享折外缩放不构成嵌套特征选择评估，也不产生新的性能声明。
 

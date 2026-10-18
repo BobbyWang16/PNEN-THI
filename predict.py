@@ -14,6 +14,124 @@ import numbers
 from pathlib import Path
 
 MODELS = {
+    "model1": {
+        "family": "proportional_odds",
+        "algorithm": "Unpenalized proportional-odds logistic regression",
+        "label": "Clinical",
+        "input_order": ["size", "SFI", "TFI", "LDH", "AST", "IFI", "RIF%"],
+        "parameters": {"maxiter": 2000, "ftol": 1e-11, "gtol": 1e-07, "threshold_gap": 0.0001},
+        "grade_rule": "argmax_class_probability_first_index_on_tie",
+        "frozen_state": {
+            "family": "proportional_odds",
+            "input_order": ["size", "SFI", "TFI", "LDH", "AST", "IFI", "RIF%"],
+            "coefficients": [
+                0.6781608195151558,
+                -0.15921230288398885,
+                0.33869110625608123,
+                0.20643969459924694,
+                0.1607245947342274,
+                -0.7323815461570489,
+                0.6972593660328262,
+            ],
+            "thresholds": [-0.5621069133059674, 1.9680039180637459],
+        },
+    },
+    "model2": {
+        "family": "proportional_odds",
+        "algorithm": "Unpenalized proportional-odds logistic regression",
+        "label": "RAD",
+        "input_order": ["RAD"],
+        "parameters": {"maxiter": 2000, "ftol": 1e-11, "gtol": 1e-07, "threshold_gap": 0.0001},
+        "grade_rule": "argmax_class_probability_first_index_on_tie",
+        "frozen_state": {
+            "family": "proportional_odds",
+            "input_order": ["RAD"],
+            "coefficients": [4.395102166854081],
+            "thresholds": [1.0100855099867476, 3.461802553015413],
+        },
+    },
+    "model3": {
+        "family": "proportional_odds",
+        "algorithm": "Unpenalized proportional-odds logistic regression",
+        "label": "THI",
+        "input_order": ["THI"],
+        "parameters": {"maxiter": 2000, "ftol": 1e-11, "gtol": 1e-07, "threshold_gap": 0.0001},
+        "grade_rule": "argmax_class_probability_first_index_on_tie",
+        "frozen_state": {
+            "family": "proportional_odds",
+            "input_order": ["THI"],
+            "coefficients": [3.606759858800513],
+            "thresholds": [1.666028937846446, 4.00853111808671],
+        },
+    },
+    "model4": {
+        "family": "proportional_odds",
+        "algorithm": "Unpenalized proportional-odds logistic regression",
+        "label": "Clinical + RAD",
+        "input_order": ["size", "SFI", "TFI", "LDH", "AST", "IFI", "RIF%", "RAD"],
+        "parameters": {"maxiter": 2000, "ftol": 1e-11, "gtol": 1e-07, "threshold_gap": 0.0001},
+        "grade_rule": "argmax_class_probability_first_index_on_tie",
+        "frozen_state": {
+            "family": "proportional_odds",
+            "input_order": ["size", "SFI", "TFI", "LDH", "AST", "IFI", "RIF%", "RAD"],
+            "coefficients": [
+                0.271688188291463,
+                -0.18522002776823485,
+                0.3165479887477539,
+                0.24825524034605148,
+                0.11198847984289897,
+                -0.6189092170499066,
+                0.5634649212767929,
+                2.9528747367728054,
+            ],
+            "thresholds": [0.44266714831919624, 3.070427429058035],
+        },
+    },
+    "model5": {
+        "family": "proportional_odds",
+        "algorithm": "Unpenalized proportional-odds logistic regression",
+        "label": "Clinical + THI",
+        "input_order": ["size", "SFI", "TFI", "LDH", "AST", "IFI", "RIF%", "THI"],
+        "parameters": {"maxiter": 2000, "ftol": 1e-11, "gtol": 1e-07, "threshold_gap": 0.0001},
+        "grade_rule": "argmax_class_probability_first_index_on_tie",
+        "frozen_state": {
+            "family": "proportional_odds",
+            "input_order": ["size", "SFI", "TFI", "LDH", "AST", "IFI", "RIF%", "THI"],
+            "coefficients": [
+                0.44006590332303797,
+                -0.14707532835047415,
+                0.32882757304162097,
+                0.20966329059685912,
+                0.16316168402199538,
+                -0.6594635725909619,
+                0.6419375158590858,
+                2.082058293747412,
+            ],
+            "thresholds": [0.6688972937968303, 3.2597352396344177],
+        },
+    },
+    "model6": {
+        "family": "proportional_odds",
+        "algorithm": "Unpenalized proportional-odds logistic regression",
+        "label": "RAD + THI",
+        "input_order": ["RAD", "THI"],
+        "parameters": {"maxiter": 2000, "ftol": 1e-11, "gtol": 1e-07, "threshold_gap": 0.0001},
+        "grade_rule": "argmax_class_probability_first_index_on_tie",
+        "frozen_state": {
+            "family": "proportional_odds",
+            "input_order": ["RAD", "THI"],
+            "coefficients": [3.290066310899856, 1.8584905349256808],
+            "thresholds": [1.7201446894093844, 4.223197477801283],
+        },
+    },
+    "model7": {
+        "family": "proportional_odds",
+        "algorithm": "Unpenalized proportional-odds logistic regression",
+        "label": "Clinical + RAD + THI",
+        "input_order": ["SFI", "TFI", "IFI", "RAD", "THI"],
+        "parameters": {"maxiter": 2000, "ftol": 1e-11, "gtol": 1e-07, "threshold_gap": 0.0001},
+        "grade_rule": "argmax_class_probability_first_index_on_tie",
+    },
     "model8": {
         "selection": "training fit; internal model/feature/hyperparameter/ensemble/threshold "
         "selection; locked external evaluation",
@@ -68,6 +186,7 @@ MODELS = {
         "source_sha256": "2fdc7a6d44ac0590b3a1e9049986929877b2ce9074456042f55a89f69ecc08c5",
     },
     "model9": {
+        "algorithm": "Dual-boundary nonlinear ensemble",
         "status": "exploratory_post_hoc_external_constrained",
         "selection_rule": "highest external macro-AUC among combinations with internal "
         "macro-AUC >= 0.812 and external macro-AUC > 0.72",
@@ -498,6 +617,41 @@ CASE_SPEC = {
 CLASSES = ("G1", "G2", "G3/NEC")
 
 
+def model_inputs(model):
+    """Return each model's required inputs in a deterministic order."""
+    spec = MODELS[model]
+    if "input_order" in spec:
+        return list(spec["input_order"])
+    components = spec.get("components") or [
+        item for boundary in spec["boundaries"] for item in boundary["components"]
+    ]
+    return list(dict.fromkeys(name for item in components for name in item["input_order"]))
+
+
+def ordinal_probabilities(state, values):
+    """Apply a proportional-odds model stored as portable scalar parameters."""
+    order, coefficients = state["input_order"], state["coefficients"]
+    if len(order) != len(coefficients):
+        raise ValueError("Ordinal coefficient count differs from its input order")
+    thresholds = [finite(value, "ordinal threshold") for value in state["thresholds"]]
+    if len(thresholds) != 2 or thresholds[0] >= thresholds[1]:
+        raise ValueError("Ordinal models require two increasing thresholds")
+    eta = math.fsum(
+        finite(beta, name) * values[name] for name, beta in zip(order, coefficients)
+    )
+
+    def sigmoid(value):
+        if value >= 0:
+            return 1.0 / (1.0 + math.exp(-value))
+        exponential = math.exp(value)
+        return exponential / (1.0 + exponential)
+
+    lower, upper = (sigmoid(cut - eta) for cut in thresholds)
+    p = [max(0.0, min(1.0, value)) for value in (lower, upper - lower, 1.0 - upper)]
+    total = math.fsum(p)
+    return [value / total for value in p]
+
+
 def score_features(features, formulas=None, names=None):
     """Evaluate locked formulas on actual measured feature values."""
     if not isinstance(features, dict):
@@ -595,37 +749,46 @@ def input_scores(inputs, formulas=None, names=None):
 def predict(model, inputs, weights=None):
     """Apply a selected model using one reviewed shared estimator bundle.
 
-    Bundle format: {artifact_schema: 'pnet-ith.frozen-estimators.v1', models:
-    {model8: [three fitted estimators], model9: [[four], [two]]}}.
-    Original research bundles do not satisfy this inference-only format.
+    Models 1–6 have inline scalar states. Refit bundles can supply ordinal
+    scalar states or the selected sklearn estimators for Models 8/9 under
+    artifact_schema 'pnet-ith.frozen-estimators.v1'.
     """
     if model not in MODELS:
         raise ValueError(f"Unknown model: {model}")
     if not isinstance(inputs, dict):
         raise ValueError("Inference input must be a JSON object")
-    bundle = load_weights(weights)
-    if model not in bundle["models"]:
-        raise ValueError(f"The selected weights do not contain {model}")
-    state = bundle["models"][model]
     spec = MODELS[model]
-    components = (
-        spec["components"]
-        if model == "model8"
-        else [item for boundary in spec["boundaries"] for item in boundary["components"]]
+    bundle = (
+        load_weights(weights)
+        if weights is not None or Path(__file__).with_name("weights.joblib").is_file()
+        else {}
     )
-    for component in components:
-        if not isinstance(component.get("input_order"), list):
-            raise RuntimeError("The frozen component input order is not yet available")
-    scores = input_scores(inputs, bundle.get("score_formulas"))
+    state = bundle.get("models", {}).get(model)
+    if state is None:
+        if weights is None and "frozen_state" in spec:
+            state, bundle = spec["frozen_state"], {}
+        else:
+            raise ValueError(
+                f"Train {model} with train.py, then supply its bundle with --weights"
+            )
+    order = model_inputs(model)
+    score_names = [name for name in ("THI", "RAD") if name in order]
+    scores = (
+        input_scores(inputs, bundle.get("score_formulas"), score_names) if score_names else {}
+    )
     values = {name: item["scaled"] for name, item in scores.items()}
-    required = {name for component in components for name in component["input_order"]} - set(
-        values
-    )
+    required = set(order) - set(values)
     for name in required:
         values[name] = clinical_value(
             name, inputs.get("clinical", {}), bundle.get("clinical_transforms")
         )
-    if model == "model8":
+    if spec.get("family") == "proportional_odds":
+        if state.get("family") != "proportional_odds" or state["input_order"] != order:
+            raise ValueError("Ordinal state does not match the selected model specification")
+        p = ordinal_probabilities(state, values)
+        grade = max(range(3), key=lambda k: p[k])
+    elif model == "model8":
+        components = spec["components"]
         if len(state) != len(components):
             raise ValueError("Wrong number of frozen Model 8 components")
         vectors = [
@@ -672,7 +835,11 @@ def predict(model, inputs, weights=None):
         )
     return {
         "model": model,
-        "model_status": "exploratory" if model == "model9" else "internally_selected",
+        "model_status": (
+            "fixed_specification"
+            if spec.get("family") == "proportional_odds"
+            else "exploratory" if model == "model9" else "internally_selected"
+        ),
         "scores": scores,
         "probabilities": dict(zip(CLASSES, p)),
         "risk": p[1] + 2 * p[2],
@@ -713,40 +880,77 @@ def main():
     args = parser.parse_args()
     try:
         if args.list_models:
+            available = (
+                set(load_weights(args.weights)["models"])
+                if args.weights is not None
+                or Path(__file__).with_name("weights.joblib").is_file()
+                else set()
+            )
+            if args.weights is None:
+                available.update(
+                    name for name, spec in MODELS.items() if "frozen_state" in spec
+                )
             result = {
                 name: {
-                    "weights_file_present": Path(__file__)
-                    .with_name("weights.joblib")
-                    .is_file(),
+                    "weights_available": name in available,
                     "description": spec.get("algorithm", spec.get("status")),
+                    "input_order": model_inputs(name),
                 }
                 for name, spec in MODELS.items()
             }
         elif args.describe:
             result = MODELS[args.describe]
         else:
-            if args.input is None and args.case is None:
+            needed = set(model_inputs(args.model)) if args.model else {"THI", "RAD"}
+            if args.thi_only:
+                needed = {"THI"}
+            if (
+                args.input is None
+                and args.case is None
+                and not (
+                    args.model and not needed.intersection({"THI", "RAD"}) and args.clinical
+                )
+            ):
                 parser.error("--input or --case is required for inference")
-            if args.case is not None and args.model and args.clinical is None:
+            if args.case is not None and args.model and not needed.intersection({"THI", "RAD"}):
+                parser.error(
+                    "This model uses clinical inputs; supply --clinical or --input without --case"
+                )
+            if (
+                args.case is not None
+                and args.model
+                and needed - {"THI", "RAD"}
+                and args.clinical is None
+            ):
                 parser.error(
                     "Image-to-grade inference requires --clinical with the actual complete clinical inputs"
                 )
             if args.case is not None:
-                from preprocessing import prepare_case
+                if "THI" in needed:
+                    from preprocessing import prepare_case
 
-                features = prepare_case(
-                    args.case,
-                    PRIOR,
-                    include_radiomics=not args.thi_only,
-                    output_dir=args.output_dir,
-                )
+                    features = prepare_case(
+                        args.case,
+                        PRIOR,
+                        include_radiomics="RAD" in needed,
+                        output_dir=args.output_dir,
+                    )
+                else:
+                    from preprocessing.radiomics import extract_radiomics
+
+                    radiomics = extract_radiomics(args.case)
+                    features = radiomics["features"]
+                    if args.output_dir:
+                        from preprocessing.io import save_json
+
+                        save_json(radiomics, args.output_dir / "radiomics_features.json")
                 inputs = {"features": features}
-                if args.clinical:
-                    inputs["clinical"] = json.loads(args.clinical.read_text(encoding="utf-8"))
             else:
-                inputs = json.loads(args.input.read_text(encoding="utf-8"))
-                if args.clinical:
-                    inputs["clinical"] = json.loads(args.clinical.read_text(encoding="utf-8"))
+                inputs = (
+                    json.loads(args.input.read_text(encoding="utf-8")) if args.input else {}
+                )
+            if args.clinical:
+                inputs["clinical"] = json.loads(args.clinical.read_text(encoding="utf-8"))
             if args.score_only or args.thi_only:
                 formulas = (
                     load_weights(args.weights).get("score_formulas")

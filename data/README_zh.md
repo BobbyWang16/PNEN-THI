@@ -149,4 +149,4 @@ python predict.py --thi-only --case outputs/cases/case_001 --output-dir outputs/
 python predict.py --score-only --case outputs/cases/case_001 --output-dir outputs/demo_scores
 ```
 
-第一条只需基础依赖；第二条还需安装 `preprocessing/requirements-radiomics.txt`。两者均保存生境图、实测特征和 `result.json`，均无需临床值。三分类分级预测还需提供自己的真实、完整临床输入，详见[项目说明](../README_zh.md#分级推理)；特征表和固定方案训练见其中的[训练部分](../README_zh.md#训练)。
+第一条只需基础依赖；第二条还需安装 `preprocessing/requirements-radiomics.txt`。两者均保存生境图、实测特征和 `result.json`，均无需临床值。三分类分级中，Model 2、3、6 仅使用影像评分，其余模型还需各自指定的临床测量。输入要求见[项目说明的模型表](../README_zh.md#分级推理)，特征表和固定方案拟合见[训练部分](../README_zh.md#训练)。

@@ -1,9 +1,10 @@
-"""Refit the locked THI/RAD and grading specifications on a supplied training CSV.
+"""Refit Model 1–9 grading specifications on a supplied training CSV.
 
 This script fits one fixed specification, without model search or performance
 experiments. --fit-scores constructs five-fold OOF training scores from the
 locked 7/16 feature sets, then fits full-training formulas for inference.
-Otherwise, supply previously generated OOF THI/RAD scores and their provenance.
+Only the clinical variables and THI/RAD scores required by --models are read.
+Otherwise, supply the required OOF scores and their provenance.
 Clinical inputs must be complete; the historical MICE state is not recreated.
 The resulting weights are a new refit, not the historical study estimators.
 """
@@ -63,6 +64,51 @@ def fit_clinical(training, features, specifications):
             "training_sd_transformed": scale,
         }
     return design, transforms
+
+
+def fit_proportional_odds(x, y, specification):
+    """Fit the source unpenalized ordinal likelihood with ordered cutpoints."""
+    import numpy as np
+    from scipy.optimize import minimize
+    from scipy.special import expit, logit
+
+    parameters = specification["parameters"]
+
+    def unpack(values):
+        first = float(values[-2])
+        second = first + float(np.logaddexp(0.0, values[-1]) + parameters["threshold_gap"])
+        return values[:-2], first, second
+
+    def objective(values):
+        coefficients, first, second = unpack(values)
+        linear = x @ coefficients
+        lower, upper = expit(first - linear), expit(second - linear)
+        probability = np.column_stack([lower, upper - lower, 1.0 - upper])
+        return float(-np.log(np.clip(probability[np.arange(len(y)), y], 1e-12, 1.0)).sum())
+
+    counts = np.bincount(y, minlength=3).astype(float)
+    cutpoints = logit(np.cumsum(counts)[:-1] / counts.sum())
+    initial = np.zeros(x.shape[1] + 2, dtype=float)
+    initial[-2] = cutpoints[0]
+    gap = max(float(cutpoints[1] - cutpoints[0]), 1e-6)
+    initial[-1] = gap + np.log(-np.expm1(-gap))
+    result = minimize(
+        objective,
+        initial,
+        method="L-BFGS-B",
+        options={name: parameters[name] for name in ("maxiter", "ftol", "gtol")},
+    )
+    if not result.success:
+        raise RuntimeError(f"Proportional-odds fit failed: {result.message}")
+    coefficients, first, second = unpack(result.x)
+    if not np.isfinite(np.r_[coefficients, first, second]).all():
+        raise RuntimeError("Proportional-odds fit returned non-finite parameters")
+    return {
+        "family": "proportional_odds",
+        "input_order": list(specification["input_order"]),
+        "coefficients": coefficients.tolist(),
+        "thresholds": [first, second],
+    }
 
 
 def fit_linear_score(frame, y, alpha, l1_ratio):
@@ -136,7 +182,7 @@ def apply_linear_score(frame, formula):
     return score
 
 
-def fit_scores(training, y, specifications):
+def fit_scores(training, y, specifications, names=None):
     """Fixed-feature OOF refit; no feature selection or hyperparameter tuning."""
     import numpy as np
     import pandas as pd
@@ -147,7 +193,8 @@ def fit_scores(training, y, specifications):
     splits = list(StratifiedKFold(5, shuffle=True, random_state=20260720).split(training, y))
     design = pd.DataFrame(index=training.index)
     formulas = {}
-    for name, (alpha, ratio) in {"THI": (0.3, 0.2), "RAD": (0.1, 0.5)}.items():
+    for name in ("THI", "RAD") if names is None else names:
+        alpha, ratio = {"THI": (0.3, 0.2), "RAD": (0.1, 0.5)}[name]
         names = [term["feature"] for term in specifications[name]["terms"]]
         missing = sorted(set(names) - set(training.columns))
         if missing:
@@ -184,13 +231,14 @@ def fit_scores(training, y, specifications):
     return design, formulas
 
 
-def supplied_scores(training):
+def supplied_scores(training, names=None):
     """Require explicit OOF provenance, avoiding use of in-sample fitted scores."""
     import numpy as np
     import pandas as pd
 
     design = pd.DataFrame(index=training.index)
-    for name, count in (("THI", 7), ("RAD", 16)):
+    for name in ("THI", "RAD") if names is None else names:
+        count = {"THI": 7, "RAD": 16}[name]
         column = name if name in training.columns else f"{name}_score_01"
         source = f"{name}_score_source"
         if column not in training or source not in training:
@@ -212,18 +260,29 @@ def supplied_scores(training):
 
 
 def main():
+    from predict import CLINICAL, MODELS, SCORES, model_inputs
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--input", type=Path, required=True, help="User-supplied merged feature/clinical CSV"
+        "--input",
+        type=Path,
+        required=True,
+        help="User-supplied merged feature/clinical CSV",
     )
     parser.add_argument(
         "--output", type=Path, required=True, help="One fitted weights.joblib output"
     )
-    parser.add_argument("--models", nargs="+", choices=("model8", "model9"), default=["model8"])
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        choices=(*MODELS, "all"),
+        default=["model8"],
+        help="Select one or more Model 1–9 specifications, or all (default: model8)",
+    )
     parser.add_argument(
         "--fit-scores",
         action="store_true",
-        help="Fit locked 7/16-feature THI/RAD with 5-fold OOF",
+        help="Fit only the required THI/RAD scores with 5-fold OOF",
     )
     parser.add_argument("--cohort-column", default="Cohort")
     parser.add_argument("--training-label", default="training")
@@ -234,7 +293,6 @@ def main():
     import numpy as np
     import pandas as pd
     import sklearn
-    from predict import CLINICAL, MODELS, SCORES
 
     try:
         if args.input.resolve() == args.output.resolve():
@@ -257,7 +315,9 @@ def main():
         y = grades.astype(int)
         if set(y) != {0, 1, 2}:
             raise ValueError("All three grades must be present in training")
-        model_names = list(dict.fromkeys(args.models))
+        model_names = list(MODELS) if "all" in args.models else list(dict.fromkeys(args.models))
+        required = {feature for name in model_names for feature in model_inputs(name)}
+        score_names = [name for name in SCORES if name in required]
         components = {
             name: (
                 [MODELS[name]["components"]]
@@ -265,25 +325,26 @@ def main():
                 else [boundary["components"] for boundary in MODELS[name]["boundaries"]]
             )
             for name in model_names
+            if MODELS[name].get("family") != "proportional_odds"
         }
-        clinical = {
-            feature
-            for groups in components.values()
-            for group in groups
-            for item in group
-            for feature in item["input_order"]
-            if feature not in {"THI", "RAD"}
-        }
+        clinical = required - set(SCORES)
         if missing := sorted(clinical - set(training.columns)):
             raise ValueError(f"Missing clinical columns: {missing}")
         design, transforms = fit_clinical(training, clinical, CLINICAL)
-        if args.fit_scores:
-            scores, formulas = fit_scores(training, y, SCORES)
+        if args.fit_scores and score_names:
+            scores, formulas = fit_scores(training, y, SCORES, score_names)
         else:
-            scores, formulas = supplied_scores(training), SCORES
+            scores = supplied_scores(training, score_names)
+            formulas = {name: SCORES[name] for name in score_names}
         design = pd.concat([design, scores], axis=1)
         state = {}
-        for name, groups in components.items():
+        for name in model_names:
+            if MODELS[name].get("family") == "proportional_odds":
+                state[name] = fit_proportional_odds(
+                    design[model_inputs(name)].to_numpy(float), y, MODELS[name]
+                )
+                continue
+            groups = components[name]
             fitted_groups = []
             for index, group in enumerate(groups):
                 target = y if name == "model8" else (y >= index + 1).astype(int)
@@ -315,9 +376,13 @@ def main():
                 "fit_scope": "training cohort only; validation rows excluded",
                 "clinical_missing_values": "complete inputs required; no recovered historical MICE state",
                 "scores": (
-                    "locked-feature five-fold OOF refit"
-                    if args.fit_scores
-                    else "supplied OOF scores with bundled published inference formulas"
+                    "not required by the selected models"
+                    if not score_names
+                    else (
+                        "locked-feature five-fold OOF refit"
+                        if args.fit_scores
+                        else "supplied OOF scores with bundled published inference formulas"
+                    )
                 ),
                 "model_selection": "fixed published configuration; no search or retuning",
                 "model9_status": (

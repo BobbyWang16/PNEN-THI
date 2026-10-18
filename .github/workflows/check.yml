@@ -14,6 +14,8 @@ jobs:
         run: |
           python -m compileall -q predict.py train.py preprocessing
           python predict.py --list-models
+          python predict.py --describe model1
+          python predict.py --describe model7
           python train.py --help
           python -m preprocessing.prepare --help
           python -m preprocessing.learn_prior --help
@@ -24,3 +26,4 @@ jobs:
         run: |
           python -m preprocessing.prepare --data-root data --case-id case_001 --output-dir outputs/cases/case_001
           python predict.py --thi-only --case outputs/cases/case_001 --output-dir outputs/demo
+          python -c "import json; from pathlib import Path; from predict import predict; features = json.loads(Path('outputs/demo/heterogeneity_features.json').read_text()); print(json.dumps(predict('model3', {'features': features})))"
