@@ -122,34 +122,34 @@ your_training_case/
 `points.nii.gz` is the prepared copy of `data/DOT/<case_id>.nii.gz`. It contains sparse expert labels **1, 2, 3** on the same grid as the CT and ROI; 0 denotes unannotated voxels. Only points inside the selected tumor ROI contribute. Supply **training cases only**:
 
 ```bash
-python -m preprocessing.learn_prior --cases /path/to/training_case_001 /path/to/training_case_002 --output outputs/prior.json
+python -m preprocessing.learn_prior --cases /path/to/training_case_001 /path/to/training_case_002 --output outputs/point_prior.pkl
 ```
 
-Arterial HU values are transformed as `clip((HU + 160) / 400, 0, 1)`. At each valid point, the method measures **arterial intensity**, **local standard deviation in a 3 × 3 × 3 neighborhood**, and **3D Sobel gradient magnitude**. Points are pooled across training cases; the coordinatewise median for each expert label defines a centroid. The three centroids are ordered by arterial intensity. The output contains aggregate centroids and annotation counts.
+Prior learning uses only **A, ROI, and DOT**. Arterial HU values are transformed as `clip((HU + 160) / 400, 0, 1)`. At each valid point, the method measures **arterial intensity**, **local standard deviation in a 3 × 3 × 3 neighborhood**, and **3D Sobel gradient magnitude**. Points are pooled across training cases; the coordinatewise median for each expert label defines a centroid. The three centroids are ordered by arterial intensity. The output contains aggregate centroids and annotation counts.
 
-The learned **100-case aggregate prior is supplied as [`prior.json`](prior.json) in the repository root**. It contains three centroids for the three arterial features (a 3 × 3 matrix). `predict.PRIOR` loads this file, and image commands use it by default; no relearning or DOT file is needed. The demonstration case has no point map and is not an input to prior learning.
+The learned prior is supplied as **[`point_prior_n100.pkl`](point_prior_n100.pkl) in the repository root**, preserving the original project's schema-2 pickle dictionary. It aggregates **3,390 expert points from 100 training cases**: `cluster_centroids` maps labels 1/2/3 to three NumPy arrays, each containing the three arterial features; `provenance` holds aggregate counts. `predict.PRIOR` loads this file, and image commands use it by default; no relearning or DOT file is needed. The demonstration case has no point map and is not an input to prior learning. Load pickle files only from trusted sources.
 
 ### 2 · Construct three constrained habitats
 
 Use the supplied aggregate prior explicitly (omitting `--prior` uses the same file):
 
 ```bash
-python -m preprocessing.cluster --case outputs/cases/case_001 --prior prior.json --output outputs/habitats.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior point_prior_n100.pkl --output outputs/habitats.nii.gz
 ```
 
 Or use a prior learned from your own training cases:
 
 ```bash
-python -m preprocessing.cluster --case outputs/cases/case_001 --prior outputs/prior.json --output outputs/habitats_custom_prior.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior outputs/point_prior.pkl --output outputs/habitats_custom_prior.nii.gz
 ```
 
 The unified image entry accepts the same option:
 
 ```bash
-python predict.py --thi-only --case outputs/cases/case_001 --prior prior.json --output-dir outputs/demo_prior
+python predict.py --thi-only --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/demo_prior
 ```
 
-Use `--prior outputs/prior.json` to select your own learned prior in either entry.
+Use `--prior outputs/point_prior.pkl` to select your own learned prior in either entry.
 
 Each tumor voxel has the five-dimensional vector **[A, local SD(A), Sobel(A), V, V − A]**, where A and V use the fixed −160 to 240 HU window mapped to 0–1. Within each case, the arterial block (first three dimensions) and the venous/difference block (last two) are independently median/IQR scaled with `RobustScaler`. Constant columns are removed, and each block is divided by the square root of its retained dimension count.
 
@@ -230,7 +230,7 @@ The input JSON contains a `features` object mapping exact feature names to measu
 `--case` can replace `--input` for image-based models. Models 2, 3, and 6 need no `--clinical`; Models 3 and 5 compute THI without extracting radiomics:
 
 ```bash
-python predict.py --model model3 --case outputs/cases/case_001 --prior prior.json --output-dir outputs/model3
+python predict.py --model model3 --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/model3
 ```
 
 Model 9 repairs crossed cumulative probabilities by averaging them before constructing the three class probabilities. Its lower and upper risk thresholds are **0.6772685594841208** and **0.9673987735976841**; equality selects the higher category.
@@ -309,7 +309,7 @@ PNEN-THI/
 ├── predict.py                 # MODELS · SCORES · CLINICAL · PRIOR; all inference
 ├── train.py                   # one fixed-specification refitting entry
 ├── weights.joblib             # selected fitted states in one shared bundle
-├── prior.json                 # learned 100-case aggregate arterial prior
+├── point_prior_n100.pkl       # original learned 100-case arterial prior
 ├── requirements.txt
 ├── preprocessing/
 │   ├── io.py                  # NIfTI geometry and source-HU handling

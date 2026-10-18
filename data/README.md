@@ -100,30 +100,30 @@ Existing target files are not overwritten. Choose a new output directory when re
 
 ## 4 Mark points and learn a prior
 
-This step is needed only to learn a new prior from **your own training cases**. The already learned **100-case aggregate prior is [`../prior.json`](../prior.json) in the repository root**: three centroids with three arterial features each (a 3 × 3 matrix). `predict.PRIOR` loads this file for default image inference, which needs no DOT file or relearning.
+This step is needed only to learn a new prior from **your own training cases**. The already learned prior is **[`point_prior_n100.pkl`](../point_prior_n100.pkl) in the repository root**, preserving the original schema-2 pickle dictionary. It aggregates **3,390 expert points from 100 training cases**; `cluster_centroids` maps labels 1/2/3 to three NumPy arrays of three arterial features each, and `provenance` holds aggregate counts. `predict.PRIOR` loads this file for default image inference, which needs no DOT file or relearning. Load pickle files only from trusted sources.
 
 For each training case, create a sparse integer label image with the exact A geometry. In ITK-SNAP or your annotation tool, mark representative intratumoral **single-voxel points** using 1 = low, 2 = intermediate and 3 = high perfusion; leave all other voxels at 0. Inspect the point map over A and the consensus ROI, and save it as `data/DOT/<case_id>.nii.gz`. Keep phenotype meanings consistent across cases. A centroid or predicted habitat map is not a substitute for expert point annotations.
 
 Package each annotated case with the same preparation command and its actual identifier. Then pass its prepared directory to the prior learner:
 
 ```bash
-python -m preprocessing.learn_prior --cases outputs/cases/your_training_case_001 outputs/cases/your_training_case_002 --output outputs/prior.json
+python -m preprocessing.learn_prior --cases outputs/cases/your_training_case_001 outputs/cases/your_training_case_002 --output outputs/point_prior.pkl
 ```
 
-Replace these training case names with your own prepared directories; they are not supplied examples. Only points inside the selected tumor contribute, and the training set must collectively contain all three point classes. The learner pools normalized arterial intensity, 3 × 3 × 3 local SD and 3D Sobel magnitude at valid points, takes the coordinatewise median for each class, and orders the three centroids by arterial intensity. `outputs/prior.json` stores your new aggregate centroids and annotation counts. No validation cases or pathological grades enter this calculation.
+Replace these training case names with your own prepared directories; they are not supplied examples. Prior learning uses only **A, ROI, and DOT**. Only points inside the selected tumor contribute, and the training set must collectively contain all three point classes. The learner pools normalized arterial intensity, 3 × 3 × 3 local SD and 3D Sobel magnitude at valid points, takes the coordinatewise median for each class, and orders the three centroids by arterial intensity. `outputs/point_prior.pkl` stores your new aggregate centroids and annotation counts in a compatible pickle dictionary. No validation cases or pathological grades enter this calculation.
 
 ## 5 Cluster three habitats
 
 From the repository root, explicitly select the supplied prior (omitting `--prior` uses the same file):
 
 ```bash
-python -m preprocessing.cluster --case outputs/cases/case_001 --prior prior.json --output outputs/case_001/habitats.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior point_prior_n100.pkl --output outputs/case_001/habitats.nii.gz
 ```
 
 Or supply your training-derived prior:
 
 ```bash
-python -m preprocessing.cluster --case outputs/cases/case_001 --prior outputs/prior.json --output outputs/case_001/habitats.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior outputs/point_prior.pkl --output outputs/case_001/habitats.nii.gz
 ```
 
 The method uses `[A, local SD(A), Sobel(A), V, V − A]` with fixed HU normalization and per-case block scaling. The prior initializes the arterial feature dimensions. Constrained K-means returns **three habitats**, each at least **5% of the tumor**. Output 0 is background; labels 1, 2 and 3 follow increasing mean arterial intensity. These derived habitat labels are separate from both ROI and DOT annotations.
@@ -145,10 +145,10 @@ python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs
 For the complete image workflow in one call, use the unified prediction script. It performs clustering and feature extraction internally:
 
 ```bash
-python predict.py --thi-only --case outputs/cases/case_001 --prior prior.json --output-dir outputs/demo_thi
-python predict.py --score-only --case outputs/cases/case_001 --prior prior.json --output-dir outputs/demo_scores
+python predict.py --thi-only --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/demo_thi
+python predict.py --score-only --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/demo_scores
 ```
 
-The same `--prior` option also works with `--model model3 --case ...`. Replace `prior.json` with `outputs/prior.json` to use your own learned prior; default commands without this option remain valid.
+The same `--prior` option also works with `--model model3 --case ...`. Replace `point_prior_n100.pkl` with `outputs/point_prior.pkl` to use your own learned prior; default commands without this option remain valid.
 
 The first command requires the base dependencies; the second also requires `preprocessing/requirements-radiomics.txt`. Both write derived habitat maps, measured features and `result.json`. Neither needs clinical measurements. For three-tier grading, Models 2, 3 and 6 use image scores alone; other models additionally need their specified clinical measurements. See the model-input table in the [main README](../README.md#grading), and its [Training section](../README.md#training) for feature tables and fixed-specification fitting.

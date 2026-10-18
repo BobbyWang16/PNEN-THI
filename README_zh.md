@@ -122,34 +122,34 @@ your_training_case/
 `points.nii.gz` 是 `data/DOT/<case_id>.nii.gz` 整理后的副本，与 CT、ROI 使用相同网格，保存稀疏专家标签 **1、2、3**；0 表示未标注体素。仅统计所选肿瘤 ROI 内的点。输入须为**训练病例**：
 
 ```bash
-python -m preprocessing.learn_prior --cases /path/to/training_case_001 /path/to/training_case_002 --output outputs/prior.json
+python -m preprocessing.learn_prior --cases /path/to/training_case_001 /path/to/training_case_002 --output outputs/point_prior.pkl
 ```
 
-动脉期 HU 按 `clip((HU + 160) / 400, 0, 1)` 变换。每个有效标注点提取**动脉强度**、**3 × 3 × 3 邻域局部标准差**和 **3D Sobel 梯度幅值**。汇集训练病例中的点，按专家标签分别计算各坐标的中位数，形成三个中心，再按动脉强度排序。输出只记录汇总中心和标注计数。
+先验学习仅使用 **A、ROI 和 DOT**。动脉期 HU 按 `clip((HU + 160) / 400, 0, 1)` 变换。每个有效标注点提取**动脉强度**、**3 × 3 × 3 邻域局部标准差**和 **3D Sobel 梯度幅值**。汇集训练病例中的点，按专家标签分别计算各坐标的中位数，形成三个中心，再按动脉强度排序。输出只记录汇总中心和标注计数。
 
-**已学习好的 100 例聚合先验保存在仓库根目录的 [`prior.json`](prior.json)**，包含三个中心、每个中心对应三项动脉期特征，即 3 × 3 矩阵。`predict.PRIOR` 从此文件读取，影像命令默认调用它，无需重新学习或提供 DOT。所附演示病例不含专家点图，不参与先验学习。
+**已学习好的先验保存在仓库根目录的 [`point_prior_n100.pkl`](point_prior_n100.pkl)**，保留原项目 schema 2 的 pickle 字典格式。它汇总 **100 例训练病例的 3,390 个专家点**：`cluster_centroids` 将标签 1/2/3 映射到三个 NumPy 数组，每个数组包含三项动脉期特征；`provenance` 保存汇总计数。`predict.PRIOR` 从此文件读取，影像命令默认调用它，无需重新学习或提供 DOT。所附演示病例不含专家点图，不参与先验学习。只加载来源可信的 pickle 文件。
 
 ### 2 · 构建三类受约束生境
 
 显式调用发布的聚合先验（省略 `--prior` 时默认读取同一文件）：
 
 ```bash
-python -m preprocessing.cluster --case outputs/cases/case_001 --prior prior.json --output outputs/habitats.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior point_prior_n100.pkl --output outputs/habitats.nii.gz
 ```
 
 或使用自己的训练病例学习所得先验：
 
 ```bash
-python -m preprocessing.cluster --case outputs/cases/case_001 --prior outputs/prior.json --output outputs/habitats_custom_prior.nii.gz
+python -m preprocessing.cluster --case outputs/cases/case_001 --prior outputs/point_prior.pkl --output outputs/habitats_custom_prior.nii.gz
 ```
 
 统一影像入口也接受同一选项：
 
 ```bash
-python predict.py --thi-only --case outputs/cases/case_001 --prior prior.json --output-dir outputs/demo_prior
+python predict.py --thi-only --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/demo_prior
 ```
 
-两个入口均可改用 `--prior outputs/prior.json`，调用自己的训练先验。
+两个入口均可改用 `--prior outputs/point_prior.pkl`，调用自己的训练先验。
 
 每个肿瘤体素的五维向量为 **[A、局部 SD(A)、Sobel(A)、V、V − A]**，其中 A、V 均采用固定 −160 至 240 HU 窗并映射至 0–1。对每例肿瘤，动脉特征块（前三维）与静脉／差值特征块（后两维）分别通过 `RobustScaler` 进行中位数／IQR 缩放，移除常量列，再将每块除以其保留维数的平方根。
 
@@ -230,7 +230,7 @@ python predict.py --model model9 --input /path/to/measured_features_or_scores.js
 影像模型可以用 `--case` 替代 `--input`。Model 2、3、6 无需 `--clinical`；Model 3、5 仅计算 THI，无需提取影像组学：
 
 ```bash
-python predict.py --model model3 --case outputs/cases/case_001 --prior prior.json --output-dir outputs/model3
+python predict.py --model model3 --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/model3
 ```
 
 Model 9 在累积概率交叉时先取二者平均，再构建三类概率。风险下、上阈值分别为 **0.6772685594841208**、**0.9673987735976841**，恰好等于阈值时归入更高类别。
@@ -309,7 +309,7 @@ PNEN-THI/
 ├── predict.py                 # MODELS · SCORES · CLINICAL · PRIOR；全部推理
 ├── train.py                   # 固定规格重新拟合的统一入口
 ├── weights.joblib             # 选定拟合状态，共用一个文件
-├── prior.json                 # 已学习的 100 例动脉期聚合先验
+├── point_prior_n100.pkl       # 原始格式的 100 例动脉期聚合先验
 ├── requirements.txt
 ├── preprocessing/
 │   ├── io.py                  # NIfTI 几何与原始 HU 读写

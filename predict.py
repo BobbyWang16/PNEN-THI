@@ -1,7 +1,7 @@
 """PNET-ITH: one entry point for the frozen grading models.
 
 Model definitions, score formulas and clinical transforms live in the
-dictionaries below. PRIOR reads the learned aggregate from prior.json.
+dictionaries below. PRIOR reads the learned aggregate from point_prior_n100.pkl.
 Selected historical fitted estimators
 are read from one shared root-level weights.joblib. Image methods and feature
 extraction live in preprocessing/. No search or evaluation suite is required.
@@ -12,6 +12,7 @@ import bisect
 import json
 import math
 import numbers
+import pickle
 from pathlib import Path
 
 MODELS = {
@@ -549,7 +550,7 @@ CLINICAL = {
     },
 }
 
-PRIOR = json.loads(Path(__file__).with_name("prior.json").read_text(encoding="utf-8"))
+PRIOR = pickle.loads(Path(__file__).with_name("point_prior_n100.pkl").read_bytes())
 
 CASE_SPEC = {
     "artifact_schema": "pnet-ith.real-case-contract.v1",
@@ -847,7 +848,7 @@ def main():
     parser.add_argument(
         "--prior",
         type=Path,
-        help="Learned aggregate JSON for THI image processing; defaults to the released prior.json",
+        help="Trusted learned prior (.pkl or .json) for THI; defaults to point_prior_n100.pkl",
     )
     parser.add_argument(
         "--output-dir", type=Path, help="Write habitat maps, measured features and result.json"

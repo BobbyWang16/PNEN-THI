@@ -7,4 +7,6 @@
 *.json text eol=lf
 *.nii.gz binary
 *.joblib binary
+*.pkl binary
+*.pickle binary
 *.png binary

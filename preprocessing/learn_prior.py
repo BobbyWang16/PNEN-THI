@@ -8,6 +8,7 @@ and annotation counts are published. No patient identifiers are written.
 from __future__ import annotations
 
 import argparse
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -77,16 +78,16 @@ def learn_prior(case_dirs, tumor_label=2):
         "schema_version": 2,
         "prior_learned": True,
         "feature_dimension": 3,
-        "feature_names": list(FEATURE_NAMES),
-        "cluster_centroids": {
-            str(rank): centers[label].tolist() for rank, label in enumerate(ordered, 1)
-        },
+        "feature_names": FEATURE_NAMES,
+        "cluster_centroids": {rank: centers[label] for rank, label in enumerate(ordered, 1)},
         "min_cluster_fraction": 0.05,
         "n_clusters": 3,
         "provenance": {
             "n_patients": len(case_dirs),
             "annotation_points": sum(len(x) for x in by_label.values()),
-            "annotation_counts": {str(label): len(values) for label, values in by_label.items()},
+            "annotation_counts": {
+                str(label): len(values) for label, values in by_label.items()
+            },
         },
         "algorithm": {
             "window_hu": [-160, 240],
@@ -98,17 +99,44 @@ def learn_prior(case_dirs, tumor_label=2):
     }
 
 
+def save_prior(prior, path):
+    """Save the original schema-2 pickle layout, or portable JSON on request."""
+    path = Path(path)
+    if path.suffix.lower() in (".pkl", ".pickle"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("wb") as handle:
+            pickle.dump(prior, handle, protocol=4)
+    elif path.suffix.lower() == ".json":
+        value = {
+            **prior,
+            "feature_names": list(prior["feature_names"]),
+            "cluster_centroids": {
+                str(label): np.asarray(center).tolist()
+                for label, center in prior["cluster_centroids"].items()
+            },
+        }
+        save_json(value, path)
+    else:
+        raise ValueError("Prior output must use .pkl, .pickle or .json")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--cases", nargs="+", type=Path, required=True, help="Training case directories only"
     )
-    parser.add_argument("--output", type=Path, required=True, help="Aggregate JSON prior")
+    parser.add_argument(
+        "--output", type=Path, required=True, help="Learned prior (.pkl or .json)"
+    )
     parser.add_argument("--tumor-label", type=int, choices=(1, 2), default=2)
     args = parser.parse_args()
+    if args.output.suffix.lower() not in (".pkl", ".pickle", ".json"):
+        parser.error("--output must use .pkl, .pickle or .json")
     prior = learn_prior(args.cases, args.tumor_label)
-    save_json(prior, args.output)
-    print(f"Saved aggregate prior: {prior['provenance']['n_patients']} training cases, 3 centroids")
+    save_prior(prior, args.output)
+    print(
+        f"Saved aggregate prior: {prior['provenance']['n_patients']} training cases, 3 centroids"
+    )
 
 
 if __name__ == "__main__":

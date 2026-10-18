@@ -8,6 +8,7 @@ the arterial block. There is no phase weighting or probability penalty.
 from __future__ import annotations
 import argparse
 import json
+import pickle
 from pathlib import Path
 from types import SimpleNamespace
 import numpy as np
@@ -262,11 +263,17 @@ class _Analyzer:
 
 
 def load_prior(prior):
-    """Validate safe JSON/dictionary schema 2 or the shipped aggregate schema."""
+    """Load a trusted pickle or JSON prior and validate its arterial centroids."""
     if isinstance(prior, (str, Path)):
-        prior = json.loads(Path(prior).read_text(encoding="utf-8-sig"))
+        path = Path(prior)
+        if path.suffix.lower() in (".pkl", ".pickle"):
+            prior = pickle.loads(path.read_bytes())
+        elif path.suffix.lower() == ".json":
+            prior = json.loads(path.read_text(encoding="utf-8-sig"))
+        else:
+            raise ValueError("Prior file must use .pkl, .pickle or .json")
     if not isinstance(prior, dict):
-        raise ValueError("A prior JSON path or dictionary is required")
+        raise ValueError("A learned prior file or dictionary is required")
     schema = prior.get("schema_version", prior.get("source_prior_schema_version"))
     if schema != 2:
         raise ValueError("Only source prior schema 2 is supported")
@@ -331,7 +338,7 @@ def main():
     parser.add_argument(
         "--prior",
         type=Path,
-        help="Learned aggregate JSON; defaults to the released root-level prior.json",
+        help="Trusted learned prior (.pkl or .json); defaults to point_prior_n100.pkl",
     )
     parser.add_argument("--output", required=True, type=Path, help="Habitat NIfTI (.nii.gz)")
     parser.add_argument("--tumor-label", type=int, choices=(1, 2), default=2)

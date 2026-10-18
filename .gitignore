@@ -32,8 +32,9 @@ archive/
 *.joblib
 *.npy
 *.npz
-# Only the curated real example and selected frozen estimator bundle belong here.
+# Only the curated example, learned prior and frozen estimator bundle belong here.
 !weights.joblib
+!point_prior_n100.pkl
 !data/A/case_001.nii.gz
 !data/V2A/case_001.nii.gz
 !data/ROI/case_001.nii.gz
