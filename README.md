@@ -20,6 +20,8 @@ Expert-initialized habitats · Interpretable heterogeneity · Frozen inference
 
 **`predict.py` handles all inference; `train.py` refits the selected model specifications.** Image preparation, point-prior learning, constrained clustering, and feature calculation live in `preprocessing/`. The release includes a learned aggregate prior, selected fitted models, and one real deidentified image case. The case demonstrates the imaging branch and contains no clinical measurements, outcome, or expert-point annotations.
 
+**Inference scope.** The frozen Model 8 and Model 9 components, clinical transformations, and THI/RAD score parameters are provided for independent prediction. Each model requires complete values for its listed clinical predictors. The original training-fitted Bayesian-Ridge chained-equation clinical imputers are not included; the release therefore does not reproduce the study's handling of missing clinical inputs. The supplied image case demonstrates habitat and image-score calculation; full grading additionally requires the selected model's clinical measurements.
+
 ## Setup
 
 Use **Python 3.9** for the full workflow, including PyRadiomics:
@@ -192,7 +194,7 @@ With `--fit-scores`, five-fold `StratifiedKFold` (`shuffle=True`, seed 20260720)
 
 Without `--fit-scores`, supply required **numeric 0–1 OOF scores** as `THI`/`RAD` (or `THI_score_01`/`RAD_score_01`) and `THI_score_source`/`RAD_score_source`. Accepted source labels are `out_of_fold`, `nested_oof`, or `training_locked_7_feature_5fold_OOF_refit` / `training_locked_16_feature_5fold_OOF_refit`. These scores must match the published inference formulas and scaling; use `--fit-scores` to keep new-dataset formulas and scores together.
 
-Models 1–7 use SciPy L-BFGS-B (`maxiter=2000`, `ftol=1e−11`, `gtol=1e−7`). The original clinical development excluded variables with at least 25% missingness, used `log1p` for skewed nonnegative variables, screened proportional-odds likelihood-ratio tests at BH-FDR q&lt;0.10, and pruned redundancy at |Spearman rho|≥0.85. Five training-fitted Bayesian-Ridge chained-equation imputations with posterior sampling were averaged while preserving observed values; validation outcomes were excluded. Those fitted imputers are unavailable, so this entry requires complete clinical inputs.
+Models 1–7 use SciPy L-BFGS-B (`maxiter=2000`, `ftol=1e−11`, `gtol=1e−7`). The original clinical development excluded variables with at least 25% training missingness, used `log1p` for skewed nonnegative variables, screened proportional-odds likelihood-ratio tests at BH-FDR q&lt;0.10, and pruned redundancy at |Spearman rho|≥0.85. After feature selection, clinical variables were transformed, standardized using the transformed nonmissing training mean and population SD, and then imputed in standardized space. Five training-fitted Bayesian-Ridge chained-equation imputations with posterior sampling were averaged while preserving observed values; validation outcomes were excluded. The original fitted clinical imputers are not distributed. Complete required clinical inputs are needed for all clinical-containing inference models, including Models 8 and 9; image-feature median imputation is a separate preprocessing step.
 
 Score regularization was compared within training cross-validation; Model 8 families, subsets, hyperparameters, and weights were selected using internal tuning. `train.py` refits the selected specifications; it does not repeat those selection searches or establish a new performance evaluation.
 

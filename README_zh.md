@@ -20,6 +20,8 @@
 
 **`predict.py` 统一推理，`train.py` 重新拟合已选定的模型规格。** 图像准备、点先验学习、受约束聚类和特征计算集中在 `preprocessing/`。发布包包含已学习的汇总先验、选定的拟合模型和一例去标识真实影像。该病例用于演示影像分支，不附临床测量、结局或专家点标注。
 
+**推理适用范围。** 发布包提供冻结的 Model 8、Model 9 组件、临床变量变换及 THI/RAD 评分参数，可用于独立预测。每个模型均要求其列出的临床预测变量完整。原研究在训练集拟合的 Bayesian-Ridge 链式临床插补器未随包提供，因此公开版本不能复现原研究对缺失临床输入的处理。示例影像用于演示生境和影像评分计算；完整分级还需提供所选模型要求的临床测量值。
+
 ## 环境配置
 
 包含 PyRadiomics 的完整流程使用 **Python 3.9**：
@@ -192,7 +194,7 @@ python train.py --input /path/to/training_features.csv --models model7 --fit-sco
 
 不使用 `--fit-scores` 时，以 `THI`／`RAD`（或 `THI_score_01`／`RAD_score_01`）提供所需 **0–1 数值折外评分**，并提供 `THI_score_source`／`RAD_score_source`。接受 `out_of_fold`、`nested_oof`，或 `training_locked_7_feature_5fold_OOF_refit`／`training_locked_16_feature_5fold_OOF_refit`。这些评分须与发布公式和缩放一致；新数据集使用 `--fit-scores` 可保持新公式与评分配套。
 
-Model 1–7 使用 SciPy L-BFGS-B（`maxiter=2000`、`ftol=1e−11`、`gtol=1e−7`）。原始临床开发排除缺失率至少 25% 的变量，对偏态非负变量作 `log1p`，按比例优势似然比检验 BH-FDR q&lt;0.10 筛选，以 |Spearman rho|≥0.85 剔除冗余。五个训练集拟合、采用后验采样的 Bayesian-Ridge 链式插补结果取均值，保留已观察值，排除验证结局。原拟合插补器不可用，因此此入口要求完整临床输入。
+Model 1–7 使用 SciPy L-BFGS-B（`maxiter=2000`、`ftol=1e−11`、`gtol=1e−7`）。原始临床开发排除训练缺失率至少 25% 的变量，对偏态非负变量作 `log1p`，按比例优势似然比检验 BH-FDR q&lt;0.10 筛选，以 |Spearman rho|≥0.85 剔除冗余。变量筛选后依次进行变换、基于变换后训练集非缺失值均值和总体标准差的标准化，以及标准化空间中的插补。五个训练集拟合、采用后验采样的 Bayesian-Ridge 链式插补结果取均值，保留已观察值，排除验证结局。原拟合临床插补器未随包提供，所有含临床变量的推理模型（包括 Model 8、9）均需完整的所需临床输入；影像特征的中位数插补属于另一预处理步骤。
 
 评分正则化在训练交叉验证中比较；Model 8 的算法、变量组合、超参数与权重通过内部调优选择。`train.py` 重新拟合已选定规格，不重复这些选择搜索，也不构成新的性能评估。
 
