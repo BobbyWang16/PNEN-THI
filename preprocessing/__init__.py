@@ -11,7 +11,7 @@ def prepare_case(case_dir, prior, *, include_radiomics=False, output_dir=None, t
     """Return a flat measured feature dictionary for the shared predict.py.
 
     Returns the 18 THI candidates, plus the 200 radiomics features when
-    include_radiomics=True. Radiomics provenance warnings remain explicit.
+    include_radiomics=True. Feature JSON files use a top-level ``features`` map.
     No normalization or score imputation is applied to the returned features.
     """
     from pathlib import Path
@@ -25,7 +25,7 @@ def prepare_case(case_dir, prior, *, include_radiomics=False, output_dir=None, t
     if output_dir is not None:
         output_dir = Path(output_dir)
         save_habitats(habitats, image, output_dir / "habitats.nii.gz")
-        save_json(features, output_dir / "heterogeneity_features.json")
+        save_json({"features": features}, output_dir / "heterogeneity_features.json")
     if include_radiomics:
         from .radiomics import extract_radiomics
 

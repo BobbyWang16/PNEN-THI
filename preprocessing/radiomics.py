@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import copy
 import logging
-import platform
 import warnings
 from pathlib import Path
 
@@ -16,12 +15,6 @@ import numpy as np
 
 from .io import load_case, save_json
 
-SOURCE_ENVIRONMENT = {
-    "python": "3.9",
-    "pyradiomics": "3.1.0",
-    "numpy": "1.26.4",
-    "SimpleITK": "2.5.5",
-}
 SETTINGS = {
     "normalize": True,
     "normalizeScale": 255,
@@ -73,14 +66,14 @@ def _sitk_image(array, affine, sitk):
 
 
 def extract_radiomics(case_dir, *, tumor_label=2, strict_version=True):
-    """Return features and extraction settings for a registered HU-scale case.
+    """Return features for a registered HU-scale case.
 
     Whole-image normalization depends on the input field of view; preserve
     the study crop. Set strict_version=False only for compatibility runs.
     """
     pyradiomics, sitk, extractor_class = _dependencies()
     actual_version = pyradiomics.__version__.lstrip("v")
-    if actual_version != SOURCE_ENVIRONMENT["pyradiomics"]:
+    if actual_version != "3.1.0":
         message = f"Source PyRadiomics version is 3.1.0; installed version is {actual_version}"
         if strict_version:
             raise RuntimeError(
@@ -112,34 +105,20 @@ def extract_radiomics(case_dir, *, tumor_label=2, strict_version=True):
         )
     if not np.isfinite(list(result.values())).all():
         raise ValueError("PyRadiomics returned non-finite feature values")
-    return {
-        "features": result,
-        "provenance": {
-            "schema": "pnen-thi.dualphase-radiomics.v1",
-            "source_environment": dict(SOURCE_ENVIRONMENT),
-            "actual_environment": {
-                "python": platform.python_version(),
-                "pyradiomics": actual_version,
-                "numpy": np.__version__,
-                "SimpleITK": sitk.Version_VersionString(),
-            },
-            "configuration": copy.deepcopy(CONFIG),
-            "n_features": len(result),
-        },
-    }
+    return {"features": result}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", required=True, type=Path)
     parser.add_argument(
-        "--output", required=True, type=Path, help="200-D feature JSON with extraction provenance"
+        "--output", required=True, type=Path, help="Feature JSON for predict.py --input"
     )
     parser.add_argument("--tumor-label", choices=(1, 2), type=int, default=2)
     parser.add_argument(
         "--allow-version-mismatch",
         action="store_true",
-        help="Label a compatibility extraction with a different PyRadiomics version",
+        help="Allow extraction with a different PyRadiomics version",
     )
     args = parser.parse_args()
     result = extract_radiomics(

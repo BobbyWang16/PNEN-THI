@@ -360,7 +360,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", required=True, type=Path)
     parser.add_argument("--habitats", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path, help="Measured feature JSON")
+    parser.add_argument(
+        "--output", required=True, type=Path, help="Feature JSON for predict.py --input"
+    )
     parser.add_argument("--tumor-label", type=int, choices=(1, 2), default=2)
     parser.add_argument("--include-reference", action="store_true")
     parser.add_argument("--include-descriptors", action="store_true")
@@ -372,7 +374,7 @@ def main():
         include_reference=args.include_reference,
         include_descriptors=args.include_descriptors,
     )
-    save_json(result, args.output)
+    save_json({"features": result}, args.output)
     print(f"Saved {len(result)} measured features")
 
 

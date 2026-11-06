@@ -132,11 +132,13 @@ python -m preprocessing.cluster --case outputs/cases/case_001 --prior point_prio
 python -m preprocessing.heterogeneity --case outputs/cases/case_001 --habitats outputs/case_001/habitats.nii.gz --output outputs/case_001/heterogeneity_features.json
 ```
 
-安装完整影像组学环境后，可提取 **200 个双期全肿瘤组学特征**：14 个共享形状特征、93 个动脉期特征和 93 个配准静脉期特征。
+提取 **200 个双期全肿瘤组学特征**：14 个共享形状特征、93 个动脉期特征和 93 个配准静脉期特征。
 
 ```bash
 python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs/case_001/radiomics_features.json
 ```
+
+两种特征文件均使用 `{"features": {"特征名": 数值}}` 格式。THI 分级时，可将 `heterogeneity_features.json` 的路径直接传给 `predict.py --model model3 --input`。
 
 也可用统一入口一次完成聚类、特征提取和 THI／RAD 两个评分：
 

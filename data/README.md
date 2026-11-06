@@ -132,11 +132,13 @@ Extract the **18 core heterogeneity features**: 9 DDI, 4 SHI and 5 DEHI measurem
 python -m preprocessing.heterogeneity --case outputs/cases/case_001 --habitats outputs/case_001/habitats.nii.gz --output outputs/case_001/heterogeneity_features.json
 ```
 
-With the full radiomics environment, extract **200 dual-phase whole-tumor radiomics features**: 14 shared shape, 93 arterial and 93 registered venous.
+Extract **200 dual-phase whole-tumor radiomics features**: 14 shared shape, 93 arterial and 93 registered venous.
 
 ```bash
 python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs/case_001/radiomics_features.json
 ```
+
+Both feature files use `{"features": {"feature_name": value}}`. For THI grading, pass `heterogeneity_features.json` directly to `predict.py --model model3 --input` with the file path.
 
 For clustering, feature extraction and both THI/RAD scores in one call:
 
