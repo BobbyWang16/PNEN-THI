@@ -24,19 +24,13 @@
 
 ## 环境配置
 
-包含 PyRadiomics 的完整流程使用 **Python 3.9**：
-
-```bash
-python -m pip install -r preprocessing/requirements-radiomics.txt
-```
-
-仅计算 THI、从已有特征推理，或训练时无需提取影像组学，可安装基础依赖；该分支也支持 **Python 3.12**：
+使用 **Python 3.9**，在仓库根目录安装全部依赖：
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-完整提取已在 Python 3.9.25、PyRadiomics 3.1.0、NumPy 1.26.4、SciPy 1.13.1、SimpleITK 2.5.5 下验证。模型加载与训练使用 scikit-learn 1.6.1。以下命令均从仓库根目录运行。
+以下命令均从仓库根目录运行。
 
 ## 输入数据
 

@@ -144,4 +144,4 @@ For clustering, feature extraction and both THI/RAD scores in one call:
 python predict.py --score-only --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/demo_scores
 ```
 
-This requires `preprocessing/requirements-radiomics.txt`. For THI alone with the base dependencies, change `--score-only` to `--thi-only`. Outputs include habitat maps, measured features and `result.json`. Models 2, 3 and 6 can also grade from image scores alone; other models require their listed clinical inputs. See [grading](../README.md#grading) and [training](../README.md#training) for model inputs and fitting options.
+Install dependencies from the root `requirements.txt`. For THI alone, change `--score-only` to `--thi-only`. Outputs include habitat maps, measured features and `result.json`. Models 2, 3 and 6 can also grade from image scores alone; other models require their listed clinical inputs. See [grading](../README.md#grading) and [training](../README.md#training) for model inputs and fitting options.

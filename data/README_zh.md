@@ -144,4 +144,4 @@ python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs
 python predict.py --score-only --case outputs/cases/case_001 --prior point_prior_n100.pkl --output-dir outputs/demo_scores
 ```
 
-此命令需要安装 `preprocessing/requirements-radiomics.txt`。仅计算 THI 时，将 `--score-only` 换为 `--thi-only`，使用基础依赖即可。输出包括生境图、实测特征和 `result.json`。Model 2、3、6 还可直接根据影像评分分级，其余模型需要表中列出的临床输入；详见[分级推理](../README_zh.md#分级推理)与[训练](../README_zh.md#训练)。
+依赖统一从根目录 `requirements.txt` 安装。仅计算 THI 时，将 `--score-only` 换为 `--thi-only`。输出包括生境图、实测特征和 `result.json`。Model 2、3、6 还可直接根据影像评分分级，其余模型需要表中列出的临床输入；详见[分级推理](../README_zh.md#分级推理)与[训练](../README_zh.md#训练)。

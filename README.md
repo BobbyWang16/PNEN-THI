@@ -24,19 +24,13 @@ Expert-initialized habitats · Interpretable heterogeneity · Frozen inference
 
 ## Setup
 
-Use **Python 3.9** for the full workflow, including PyRadiomics:
-
-```bash
-python -m pip install -r preprocessing/requirements-radiomics.txt
-```
-
-For THI, inference from existing features, or training without radiomics extraction, install the base dependencies; this branch also supports **Python 3.12**:
+Use **Python 3.9**. Install all dependencies from the repository root:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-Full extraction was verified with Python 3.9.25, PyRadiomics 3.1.0, NumPy 1.26.4, SciPy 1.13.1, and SimpleITK 2.5.5. Model loading and training use scikit-learn 1.6.1. Run the commands below from the repository root.
+Run the commands below from the repository root.
 
 ## Input data
 
