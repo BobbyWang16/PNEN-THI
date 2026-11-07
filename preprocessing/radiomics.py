@@ -1,4 +1,4 @@
-"""Extract 200 dual-phase Original features with PyRadiomics 3.1.0.
+"""Extract 200 dual-phase Original features with PyRadiomics.
 
 Retain 14 shared shape features and 93 nonshape features from each phase.
 """
@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import copy
 import logging
-import warnings
 from pathlib import Path
 
 import numpy as np
@@ -39,14 +38,13 @@ CONFIG = {
 
 def _dependencies():
     try:
-        import radiomics as pyradiomics
         import SimpleITK as sitk
         from radiomics.featureextractor import RadiomicsFeatureExtractor
     except ImportError as exc:
         raise ImportError(
-            "Radiomics extraction needs PyRadiomics 3.1.0 and SimpleITK; use the documented imaging environment"
+            "Radiomics extraction needs PyRadiomics and SimpleITK; use the documented imaging environment"
         ) from exc
-    return pyradiomics, sitk, RadiomicsFeatureExtractor
+    return sitk, RadiomicsFeatureExtractor
 
 
 def _sitk_image(array, affine, sitk):
@@ -65,21 +63,13 @@ def _sitk_image(array, affine, sitk):
     return image
 
 
-def extract_radiomics(case_dir, *, tumor_label=2, strict_version=True):
+def extract_radiomics(case_dir, *, tumor_label=2):
     """Return features for a registered HU-scale case.
 
     Whole-image normalization depends on the input field of view; preserve
-    the study crop. Set strict_version=False only for compatibility runs.
+    the study crop.
     """
-    pyradiomics, sitk, extractor_class = _dependencies()
-    actual_version = pyradiomics.__version__.lstrip("v")
-    if actual_version != "3.1.0":
-        message = f"Source PyRadiomics version is 3.1.0; installed version is {actual_version}"
-        if strict_version:
-            raise RuntimeError(
-                message + "; select the source environment or explicitly allow a version mismatch"
-            )
-        warnings.warn(message, RuntimeWarning, stacklevel=2)
+    sitk, extractor_class = _dependencies()
     arterial, venous, mask, reference = load_case(case_dir, tumor_label)
     mask_image = _sitk_image(mask.astype(np.uint8) * 2, reference.affine, sitk)
     extractor = extractor_class(copy.deepcopy(CONFIG))
@@ -115,15 +105,8 @@ def main():
         "--output", required=True, type=Path, help="Feature JSON for predict.py --input"
     )
     parser.add_argument("--tumor-label", choices=(1, 2), type=int, default=2)
-    parser.add_argument(
-        "--allow-version-mismatch",
-        action="store_true",
-        help="Allow extraction with a different PyRadiomics version",
-    )
     args = parser.parse_args()
-    result = extract_radiomics(
-        args.case, tumor_label=args.tumor_label, strict_version=not args.allow_version_mismatch
-    )
+    result = extract_radiomics(args.case, tumor_label=args.tumor_label)
     save_json(result, args.output)
     print("Saved 200 dual-phase Original radiomics features")
 

@@ -14,7 +14,7 @@
 
 ## 环境配置
 
-使用 **Python 3.9**，以下命令均在仓库根目录运行：
+使用 **Python 3.9 或更高版本**，以下命令均在仓库根目录运行：
 
 ```bash
 python -m pip install -r requirements.txt
@@ -80,7 +80,7 @@ python -m preprocessing.learn_prior --cases /path/to/training_case_001 /path/to/
 
 **THI** 使用 18 项异质性候选特征中的 **7 项**；**RAD** 使用 200 项组学候选特征中的 **16 项**。特征名和固定线性系数见 [`predict.SCORES`](predict.py)。两者均按训练集五折折外评分的 P1/P99 映射到 0–1：`clip((raw − P1) / (P99 − P1), 0, 1)`。
 
-双期组学使用 **PyRadiomics 3.1.0**：14 项共享形状特征 + 两期各 93 项非形状特征。采用 `Original` 影像、整幅归一化并缩放至 255、灰度箱宽 25、1 mm 重采样和 B-spline 插值。整幅归一化受视野影响，需保持数据指南规定的裁剪方式。
+双期组学使用 **PyRadiomics**：14 项共享形状特征 + 两期各 93 项非形状特征。采用 `Original` 影像、整幅归一化并缩放至 255、灰度箱宽 25、1 mm 重采样和 B-spline 插值。整幅归一化受视野影响，需保持数据指南规定的裁剪方式。
 
 ```bash
 python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs/radiomics_features.json

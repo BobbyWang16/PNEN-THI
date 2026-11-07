@@ -14,7 +14,7 @@ Construct three tumor habitats from arterial- and venous-phase CT, calculate the
 
 ## Setup
 
-Use **Python 3.9** and run all commands from the repository root:
+Use **Python 3.9 or later** and run all commands from the repository root:
 
 ```bash
 python -m pip install -r requirements.txt
@@ -80,7 +80,7 @@ Each training directory needs `arterial.nii.gz`, `tumor_roi.nii.gz`, and `points
 
 **THI** uses **7 of the 18** heterogeneity candidates; **RAD** uses **16 of 200** radiomics candidates. Exact feature names and fixed linear coefficients are in [`predict.SCORES`](predict.py). Both scores use training five-fold out-of-fold P1/P99 scaling: `clip((raw − P1) / (P99 − P1), 0, 1)`.
 
-Dual-phase radiomics uses **PyRadiomics 3.1.0**: 14 shared shape features plus 93 nonshape features per phase. Settings are `Original` images, whole-image normalization scaled to 255, bin width 25, 1-mm resampling, and B-spline interpolation. Whole-image normalization depends on the field of view; follow the cropping procedure in the data guide.
+Dual-phase radiomics uses **PyRadiomics**: 14 shared shape features plus 93 nonshape features per phase. Settings are `Original` images, whole-image normalization scaled to 255, bin width 25, 1-mm resampling, and B-spline interpolation. Whole-image normalization depends on the field of view; follow the cropping procedure in the data guide.
 
 ```bash
 python -m preprocessing.radiomics --case outputs/cases/case_001 --output outputs/radiomics_features.json

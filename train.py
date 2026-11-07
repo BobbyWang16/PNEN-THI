@@ -12,7 +12,6 @@ The resulting weights are a new refit, not the historical study estimators.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -292,7 +291,6 @@ def main():
     import joblib
     import numpy as np
     import pandas as pd
-    import sklearn
 
     try:
         if args.input.resolve() == args.output.resolve():
@@ -370,7 +368,6 @@ def main():
             "score_formulas": formulas,
             "provenance": {
                 "status": "locked_spec_refit_not_historical_frozen",
-                "created_at_utc": datetime.now(timezone.utc).isoformat(),
                 "class_order": ["G1", "G2", "G3/NEC"],
                 "training_rows": len(training),
                 "fit_scope": "training cohort only; validation rows excluded",
@@ -390,7 +387,6 @@ def main():
                     if "model9" in state
                     else "not_fitted"
                 ),
-                "scikit_learn": sklearn.__version__,
             },
         }
         args.output.parent.mkdir(parents=True, exist_ok=True)
